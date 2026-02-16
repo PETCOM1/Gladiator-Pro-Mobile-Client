@@ -6,26 +6,43 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
+
+import { ProtocolReminder } from '@/components/ProtocolReminder';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
   anchor: '(drawer)',
 };
 
+
 export default function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <RootLayoutNav />
+    </AppThemeProvider>
+  );
+}
+
+function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const rootNavigationState = useRootNavigationState();
 
   // Simple initial redirect to login
   useEffect(() => {
-    // Wait for the root navigator to be ready
+    // Wait for the navigation to be fully ready
     if (!rootNavigationState?.key) return;
 
-    // In a real app, check auth state here
-    const isAuthenticated = false;
-    if (!isAuthenticated) {
-      router.replace('/login');
-    }
+    // Add a small delay to ensure the layout is fully mounted
+    const timer = setTimeout(() => {
+      // In a real app, check auth state here
+      const isAuthenticated = false;
+      if (!isAuthenticated) {
+        router.replace('/login');
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [rootNavigationState?.key]);
 
   return (
@@ -33,6 +50,7 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <StackScreen />
+          <ProtocolReminder />
           <StatusBar style="auto" />
         </ThemeProvider>
       </GestureHandlerRootView>

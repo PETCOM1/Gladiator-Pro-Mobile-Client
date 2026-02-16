@@ -10,28 +10,28 @@ const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#1F2933',
-    background: '#E5E7EB',
-    tint: '#3B82F6',
-    icon: '#1F2933',
-    tabIconDefault: '#1F2933',
-    tabIconSelected: '#3B82F6',
-    card: '#FFFFFF',
-    success: '#22C55E',
-    error: '#EF4444',
-    warning: '#F59E0B',
+    text: '#0A0A0A', // Near black for light mode
+    background: '#E0E0E0', // Light gray
+    tint: '#0066CC', // Tactical blue (darker for light mode)
+    icon: '#0A0A0A',
+    tabIconDefault: '#808080',
+    tabIconSelected: '#0066CC',
+    card: '#F5F5F5',
+    success: '#00BFFF', // Tactical blue
+    error: '#FF0000', // Red alert
+    warning: '#FFA500', // Amber alert
   },
   dark: {
-    text: '#E5E7EB',
-    background: '#0F172A', // Navy Blue
-    tint: '#3B82F6', // Accent Blue
-    icon: '#E5E7EB',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: '#3B82F6',
-    card: '#1F2933', // Dark Gray
-    success: '#22C55E', // Emerald Green
-    error: '#EF4444', // Alert Red
-    warning: '#F59E0B', // Amber
+    text: '#E0E0E0', // Off-white
+    background: '#000000', // Pure black
+    tint: '#00BFFF', // Tactical blue (electric/deep sky blue)
+    icon: '#E0E0E0',
+    tabIconDefault: '#808080',
+    tabIconSelected: '#00BFFF',
+    card: '#0A0A0A', // Near black
+    success: '#00BFFF', // Tactical blue
+    error: '#FF0000', // Red alert
+    warning: '#FFA500', // Amber alert
   },
 };
 

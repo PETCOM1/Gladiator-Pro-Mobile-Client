@@ -1,10 +1,12 @@
+import { NFCScanner } from '@/components/NFCScanner';
+import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedCard } from '@/components/ThemedCard';
-import { ThemedScanner } from '@/components/ThemedScanner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import NfcManager from 'react-native-nfc-manager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const INITIAL_CHECKPOINTS = [
@@ -21,24 +23,62 @@ export default function PatrolScreen() {
     const insets = useSafeAreaInsets();
     const [checkpoints, setCheckpoints] = useState(INITIAL_CHECKPOINTS);
     const [scannerVisible, setScannerVisible] = useState(false);
+    const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const checkNfc = async () => {
+            try {
+                const supported = await NfcManager.isSupported();
+                setNfcSupported(supported);
+            } catch (e) {
+                console.warn('NFC_CHECK_FAILED: Native module likely missing');
+                setNfcSupported(false);
+            }
+        };
+        checkNfc();
+    }, []);
 
     const handleCheckIn = (id: string) => {
         setCheckpoints(prev => prev.map(cp =>
             cp.id === id ? { ...cp, status: 'completed', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } : cp
         ));
-        Alert.alert('Success', 'Checkpoint verified!');
+        Alert.alert('PROTOCOL_SUCCESS', 'CHECKPOINT_VERIFIED // LOG_ENTRY_UPDATED');
     };
 
-    const handleScan = (data: string) => {
-        // Simulate finding a checkpoint by scanning its ID (e.g., "cp-1")
-        const cpId = data.replace('cp-', '');
+    const handleScan = (tagId: string) => {
+        // In a real app, tagId would be mapped to a checkpoint ID in the database
+        // For this demo, we'll map common tag IDs or use a suffix logic
+        // Let's assume tags are labeled like "4A:5B:6C..." or we map specific ones
+
+        // Simulation mapping: tag IDs roughly starting with "cp-" or just matching index
+        const cpId = tagId.includes('cp-') ? tagId.replace('cp-', '') : '1';
         const exists = checkpoints.find(cp => cp.id === cpId);
 
         if (exists) {
             handleCheckIn(cpId);
-            setScannerVisible(false);
         } else {
-            Alert.alert('Error', 'Invalid Checkpoint QR Code');
+            Alert.alert('PROTOCOL_ERROR', 'UNRECOGNIZED_TAG // UNAUTHORIZED_CHECKPOINT');
+        }
+    };
+
+    const toggleScanner = async () => {
+        if (nfcSupported === false) {
+            Alert.alert('HARDWARE_MISMATCH', 'DEVICE_NFC_NOT_SUPPORTED // USE_LEGACY_QR_FALLBACK');
+            return;
+        }
+
+        try {
+            const enabled = await NfcManager.isEnabled();
+            if (!enabled) {
+                Alert.alert('SENSOR_OFFLINE', 'NFC_DISABLED // PLEASE_ENABLE_NFC_IN_SETTINGS', [
+                    { text: 'SETTINGS', onPress: () => NfcManager.goToNfcSetting() },
+                    { text: 'CANCEL', style: 'cancel' }
+                ]);
+                return;
+            }
+            setScannerVisible(true);
+        } catch (e) {
+            Alert.alert('HARDWARE_ERROR', 'NFC_HARDWARE_UNAVAILABLE');
         }
     };
 
@@ -70,12 +110,15 @@ export default function PatrolScreen() {
     );
 
     return (
-        <View style={styles.container}>
+        <TacticalBackground style={styles.container}>
             <View style={styles.header}>
-                <Text style={[styles.title, { color: textColor }]}>Active Patrol Cycle</Text>
-                <View style={styles.nfcContainer}>
-                    <IconSymbol size={16} name="sensor.tag.radiowaves.forward.fill" color="#9BA1A6" />
-                    <Text style={styles.nfcText}>NFC Reading Active</Text>
+                <View style={styles.headerInfo}>
+                    <Text style={[styles.title, { color: textColor }]}>PATROL_CYCLE_04</Text>
+                    <Text style={[styles.subtitle, { color: '#808080' }]}>SECTOR: G-DELTA // ACTIVE_MONITORING</Text>
+                </View>
+                <View style={[styles.nfcContainer, { backgroundColor: 'rgba(0, 191, 255, 0.1)' }]}>
+                    <IconSymbol size={14} name="sensor.tag.radiowaves.forward.fill" color={tintColor} />
+                    <Text style={[styles.nfcText, { color: tintColor }]}>NFC_LINK_ACTIVE</Text>
                 </View>
             </View>
 
@@ -97,22 +140,28 @@ export default function PatrolScreen() {
                         bottom: insets.bottom + 20
                     }
                 ]}
-                onPress={() => setScannerVisible(true)}
+                activeOpacity={0.8}
+                onPress={toggleScanner}
             >
-                <IconSymbol name="qrcode.viewfinder" size={32} color="#FFF" />
+                <View style={[styles.corner, styles.topLeft]} />
+                <View style={[styles.corner, styles.topRight]} />
+                <View style={[styles.corner, styles.bottomLeft]} />
+                <View style={[styles.corner, styles.bottomRight]} />
+                <IconSymbol name="sensor.tag.radiowaves.forward.fill" size={32} color="#000" />
             </TouchableOpacity>
 
-            <ThemedScanner
+            <NFCScanner
                 visible={scannerVisible}
                 onClose={() => setScannerVisible(false)}
                 onScan={handleScan}
-                title="Scan Checkpoint QR"
             />
 
             <View style={styles.footer}>
-                <Text style={[styles.timestamp, { color: '#9BA1A6' }]}>Last update: Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[styles.timestamp, { color: '#808080' }]}>
+                    LAST_SYNC: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} UTC
+                </Text>
             </View>
-        </View>
+        </TacticalBackground>
     );
 }
 
@@ -125,27 +174,41 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0, 191, 255, 0.2)',
+    },
+    headerInfo: {
+        flex: 1,
     },
     title: {
-        fontSize: 20,
-        fontWeight: 'bold',
+        fontSize: 14,
+        fontWeight: '900',
+        fontFamily: 'monospace',
+        letterSpacing: 2,
+    },
+    subtitle: {
+        fontSize: 9,
+        fontFamily: 'monospace',
+        letterSpacing: 1,
+        marginTop: 4,
     },
     nfcContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 191, 255, 0.3)',
     },
     nfcText: {
-        fontSize: 10,
-        color: '#3B82F6',
-        marginLeft: 4,
+        fontSize: 9,
+        fontWeight: '900',
+        marginLeft: 6,
+        fontFamily: 'monospace',
+        letterSpacing: 1,
     },
     listContent: {
         padding: 16,
-        paddingBottom: 100,
     },
     checkpointCard: {
         flexDirection: 'row',
@@ -158,47 +221,71 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     checkpointName: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 14,
+        fontWeight: '800',
+        fontFamily: 'monospace',
+        letterSpacing: 1,
     },
     checkpointTime: {
-        fontSize: 14,
-        marginTop: 2,
+        fontSize: 10,
+        fontFamily: 'monospace',
+        marginTop: 4,
     },
     checkpointAction: {
         marginLeft: 12,
     },
     checkInButton: {
-        width: 100,
+        width: 110,
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(34, 197, 94, 0.3)',
     },
     statusText: {
-        marginLeft: 4,
-        fontWeight: 'bold',
+        marginLeft: 6,
+        fontWeight: '900',
+        fontSize: 10,
+        fontFamily: 'monospace',
+        letterSpacing: 1,
     },
     fab: {
         position: 'absolute',
-        bottom: 80,
         right: 20,
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: 70,
+        height: 70,
         alignItems: 'center',
         justifyContent: 'center',
-        elevation: 5,
+        elevation: 10,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 5,
     },
+    corner: {
+        position: 'absolute',
+        width: 12,
+        height: 12,
+        borderWidth: 2,
+        borderColor: '#000',
+    },
+    topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
+    topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
+    bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
+    bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
     footer: {
-        padding: 20,
+        padding: 16,
         alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0, 191, 255, 0.1)',
     },
     timestamp: {
-        fontSize: 12,
+        fontSize: 9,
+        fontFamily: 'monospace',
+        letterSpacing: 1,
     },
 });

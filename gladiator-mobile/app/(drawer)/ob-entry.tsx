@@ -80,117 +80,120 @@ export default function OBEntryScreen() {
     };
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={[
-                styles.content,
-                { paddingBottom: insets.bottom + 40 }
-            ]}
-        >
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: textColor }]}>Occurrence Book</Text>
-                <Text style={[styles.timeText, { color: '#9BA1A6' }]}>{dateTimeString}</Text>
-            </View>
+        <TacticalBackground style={styles.container}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                    styles.content,
+                    { paddingBottom: insets.bottom + 40 }
+                ]}
+            >
+                <View style={styles.header}>
+                    <Text style={[styles.title, { color: textColor }]}>OB_ENTRY_PROTOCOL</Text>
+                    <Text style={[styles.timeText, { color: '#808080' }]}>TIMESTAMP: {dateTimeString} UTC</Text>
+                </View>
 
-            {!showForm ? (
-                <>
-                    <ThemedCard style={styles.quickActionCard}>
-                        <Text style={[styles.cardTitle, { color: textColor }]}>Routine Status Check</Text>
-                        <Text style={styles.cardSubtitle}>Is everything secure at your post?</Text>
+                {!showForm ? (
+                    <>
+                        <ThemedCard style={styles.quickActionCard} showBrackets={true}>
+                            <Text style={[styles.cardTitle, { color: textColor }]}>ROUTINE_STATUS_CHECK</Text>
+                            <Text style={styles.cardSubtitle}>SECURE_ESTABLISHED // ALL_CLEAR_MONITORING</Text>
 
-                        <TouchableOpacity
-                            style={[styles.allClearButton, { backgroundColor: successColor }]}
-                            onPress={handleAllClear}
-                        >
-                            <IconSymbol name="checkmark.shield.fill" size={24} color="#FFF" />
-                            <Text style={styles.allClearText}>Mark as ALL CLEAR</Text>
-                        </TouchableOpacity>
-                    </ThemedCard>
-
-                    <View style={styles.dividerContainer}>
-                        <View style={styles.divider} />
-                        <Text style={styles.dividerText}>OR</Text>
-                        <View style={styles.divider} />
-                    </View>
-
-                    <ThemedButton
-                        title="Report an Incident"
-                        variant="error"
-                        onPress={() => setShowForm(true)}
-                    />
-                </>
-            ) : (
-                <ThemedCard style={styles.formCard}>
-                    <View style={styles.formHeader}>
-                        <Text style={[styles.formTitle, { color: textColor }]}>Incident Details</Text>
-                        <TouchableOpacity onPress={() => setShowForm(false)}>
-                            <Text style={{ color: tintColor, fontWeight: 'bold' }}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <ThemedPicker
-                        label="Incident Type"
-                        placeholder="What happened?"
-                        options={INCIDENT_TYPES}
-                        selectedValue={incidentType}
-                        onValueChange={setIncidentType}
-                    />
-
-                    <ThemedPicker
-                        label="Severity Level"
-                        placeholder="Choose severity"
-                        options={SEVERITY_LEVELS}
-                        selectedValue={severity}
-                        onValueChange={setSeverity}
-                    />
-
-                    <ThemedInput
-                        label="Location"
-                        placeholder="Where did it happen?"
-                        value={location}
-                        onChangeText={setLocation}
-                    />
-
-                    <ThemedInput
-                        label="Description"
-                        placeholder="Describe the incident..."
-                        multiline
-                        numberOfLines={3}
-                        style={styles.textArea}
-                        value={description}
-                        onChangeText={setDescription}
-                    />
-
-                    <View style={styles.photoSection}>
-                        <Text style={[styles.label, { color: textColor }]}>Evidence Photo (Optional)</Text>
-                        {image ? (
-                            <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
-                                <Image source={{ uri: image }} style={styles.imagePreview} />
-                                <View style={styles.imageOverlay}>
-                                    <Text style={styles.imageOverlayText}>Tap to change</Text>
-                                </View>
-                            </TouchableOpacity>
-                        ) : (
                             <TouchableOpacity
-                                style={[styles.uploadButton, { backgroundColor: cardColor, borderColor: 'rgba(155, 161, 166, 0.2)' }]}
-                                onPress={pickImage}
+                                style={[styles.allClearButton, { backgroundColor: successColor }]}
+                                activeOpacity={0.8}
+                                onPress={handleAllClear}
                             >
-                                <IconSymbol name="camera.fill" size={32} color={tintColor} />
-                                <Text style={[styles.uploadText, { color: '#9BA1A6' }]}>Tap to upload photo</Text>
+                                <IconSymbol name="checkmark.shield.fill" size={24} color="#000" />
+                                <Text style={styles.allClearText}>SUBMIT_ALL_CLEAR</Text>
                             </TouchableOpacity>
-                        )}
-                    </View>
+                        </ThemedCard>
 
-                    <View style={styles.buttonRow}>
+                        <View style={styles.dividerContainer}>
+                            <View style={styles.divider} />
+                            <Text style={styles.dividerText}>OR</Text>
+                            <View style={styles.divider} />
+                        </View>
+
                         <ThemedButton
-                            title="Submit Incident Report"
+                            title="Report an Incident"
                             variant="error"
-                            onPress={handleSubmitIncident}
+                            onPress={() => setShowForm(true)}
                         />
-                    </View>
-                </ThemedCard>
-            )}
-        </ScrollView>
+                    </>
+                ) : (
+                    <ThemedCard style={styles.formCard}>
+                        <View style={styles.formHeader}>
+                            <Text style={[styles.formTitle, { color: textColor }]}>Incident Details</Text>
+                            <TouchableOpacity onPress={() => setShowForm(false)}>
+                                <Text style={{ color: tintColor, fontWeight: 'bold' }}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <ThemedPicker
+                            label="Incident Type"
+                            placeholder="What happened?"
+                            options={INCIDENT_TYPES}
+                            selectedValue={incidentType}
+                            onValueChange={setIncidentType}
+                        />
+
+                        <ThemedPicker
+                            label="Severity Level"
+                            placeholder="Choose severity"
+                            options={SEVERITY_LEVELS}
+                            selectedValue={severity}
+                            onValueChange={setSeverity}
+                        />
+
+                        <ThemedInput
+                            label="Location"
+                            placeholder="Where did it happen?"
+                            value={location}
+                            onChangeText={setLocation}
+                        />
+
+                        <ThemedInput
+                            label="Description"
+                            placeholder="Describe the incident..."
+                            multiline
+                            numberOfLines={3}
+                            style={styles.textArea}
+                            value={description}
+                            onChangeText={setDescription}
+                        />
+
+                        <View style={styles.photoSection}>
+                            <Text style={[styles.label, { color: textColor }]}>Evidence Photo (Optional)</Text>
+                            {image ? (
+                                <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
+                                    <Image source={{ uri: image }} style={styles.imagePreview} />
+                                    <View style={styles.imageOverlay}>
+                                        <Text style={styles.imageOverlayText}>Tap to change</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[styles.uploadButton, { backgroundColor: cardColor, borderColor: 'rgba(155, 161, 166, 0.2)' }]}
+                                    onPress={pickImage}
+                                >
+                                    <IconSymbol name="camera.fill" size={32} color={tintColor} />
+                                    <Text style={[styles.uploadText, { color: '#9BA1A6' }]}>Tap to upload photo</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        <View style={styles.buttonRow}>
+                            <ThemedButton
+                                title="Submit Incident Report"
+                                variant="error"
+                                onPress={handleSubmitIncident}
+                            />
+                        </View>
+                    </ThemedCard>
+                )}
+            </ScrollView>
+        </TacticalBackground>
     );
 }
 
@@ -198,20 +201,29 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    scrollView: {
+        flex: 1,
+    },
     content: {
         padding: 20,
-        paddingBottom: 40,
     },
     header: {
         marginBottom: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0, 191, 255, 0.2)',
+        paddingBottom: 12,
     },
     title: {
-        fontSize: 24,
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '900',
+        fontFamily: 'monospace',
+        letterSpacing: 2,
     },
     timeText: {
-        fontSize: 14,
-        marginTop: 4,
+        fontSize: 9,
+        marginTop: 6,
+        fontFamily: 'monospace',
+        letterSpacing: 1,
     },
     quickActionCard: {
         padding: 24,
@@ -219,30 +231,35 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     cardTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 14,
+        fontWeight: '800',
         marginBottom: 8,
+        fontFamily: 'monospace',
+        letterSpacing: 1.5,
     },
     cardSubtitle: {
-        color: '#9BA1A6',
-        fontSize: 14,
+        fontSize: 9,
         marginBottom: 20,
         textAlign: 'center',
+        fontFamily: 'monospace',
+        letterSpacing: 1,
+        color: '#808080',
     },
     allClearButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingVertical: 14,
         paddingHorizontal: 24,
-        borderRadius: 12,
         width: '100%',
         justifyContent: 'center',
     },
     allClearText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: 'bold',
+        color: '#000',
+        fontSize: 12,
+        fontWeight: '900',
         marginLeft: 12,
+        fontFamily: 'monospace',
+        letterSpacing: 1.5,
     },
     dividerContainer: {
         flexDirection: 'row',

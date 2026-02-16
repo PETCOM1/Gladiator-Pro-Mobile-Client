@@ -34,7 +34,7 @@ export function ThemedScanner({
         if (visible && !permission?.granted) {
             requestPermission();
         }
-    }, [visible, permission]);
+    }, [visible, permission, requestPermission]);
 
     const handleBarCodeScanned = ({ data }: { data: string }) => {
         setScanned(true);
@@ -99,7 +99,7 @@ export function ThemedScanner({
                             </View>
                         </CameraView>
                         <View style={styles.hintContainer}>
-                            <Text style={styles.hintText}>Point the camera at the QR code</Text>
+                            <Text style={styles.hintText}>POINT CAMERA AT BARCODE OR ID CARD</Text>
                         </View>
                     </View>
                 )}

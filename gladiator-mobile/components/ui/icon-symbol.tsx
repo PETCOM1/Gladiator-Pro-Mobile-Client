@@ -1,11 +1,11 @@
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
+import { SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { ComponentProps } from 'react';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
-type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
+type IconMapping = Partial<Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>>;
 type IconSymbolName = keyof typeof MAPPING;
 
 /**
@@ -14,10 +14,50 @@ type IconSymbolName = keyof typeof MAPPING;
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
 const MAPPING = {
+  // Existing & Core
   'house.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'pencil.and.outline': 'edit',
+  'map.fill': 'map',
+  'person.2.fill': 'people',
+  'chart.bar.fill': 'bar-chart',
+  'antenna.radiowaves.left.and.right': 'settings-input-antenna',
+  'shield.fill': 'shield',
+  'bolt.fill': 'bolt',
+  'building.2.fill': 'business',
+  'person.fill': 'person',
+  'lock.fill': 'lock',
+  'person.crop.circle.fill': 'account-circle',
+
+  // OB Entry / Incidents
+  'shield.slash.fill': 'shield-off',
+  'flame.fill': 'whatshot',
+  'cross.case.fill': 'medical-services',
+  'hammer.fill': 'handyman',
+  'eye.fill': 'visibility',
+  'lock.open.fill': 'lock-open',
+  'questionmark.circle.fill': 'help',
+  'info.circle.fill': 'info',
+  'exclamationmark.triangle.fill': 'warning',
+  'exclamationmark.circle.fill': 'error',
+  'checkmark.shield.fill': 'verified-user',
+  'camera.fill': 'photo-camera',
+
+  // Visitors
+  'briefcase.fill': 'business-center',
+  'shippingbox.fill': 'inventory',
+  'wrench.and.screwdriver.fill': 'handyman',
+  'ellipsis.circle.fill': 'more-horiz',
+  'person.text.rectangle.fill': 'assignment-ind',
+  'phone.fill': 'phone',
+  'car.fill': 'directions-car',
+
+  // Patrol
+  'checkmark.circle.fill': 'check-circle',
+  'sensor.tag.radiowaves.forward.fill': 'nfc',
+  'qrcode.viewfinder': 'qr-code-scanner',
 } as IconMapping;
 
 /**
