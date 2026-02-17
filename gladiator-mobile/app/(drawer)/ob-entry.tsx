@@ -1,3 +1,4 @@
+import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedCard } from '@/components/ThemedCard';
 import { ThemedInput } from '@/components/ThemedInput';

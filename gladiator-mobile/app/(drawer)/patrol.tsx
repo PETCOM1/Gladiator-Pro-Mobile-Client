@@ -6,7 +6,18 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import NfcManager from 'react-native-nfc-manager';
+// Safe import for NFC Manager to avoid crash in Expo Go
+let NfcManager: any;
+try {
+    NfcManager = require('react-native-nfc-manager').default;
+} catch (e) {
+    NfcManager = {
+        isSupported: async () => false,
+        start: async () => { },
+        isEnabled: async () => false,
+        goToNfcSetting: () => { },
+    };
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const INITIAL_CHECKPOINTS = [

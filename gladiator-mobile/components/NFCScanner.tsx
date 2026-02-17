@@ -2,7 +2,22 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import React, { useEffect, useState } from 'react';
 import { Alert, Animated, Modal, StyleSheet, Text, View } from 'react-native';
-import NfcManager, { NfcTech } from 'react-native-nfc-manager';
+// Safe import for NFC Manager
+let NfcManager: any;
+let NfcTech: any = { Ndef: 'Ndef' };
+try {
+    const nfcModule = require('react-native-nfc-manager');
+    NfcManager = nfcModule.default;
+    if (nfcModule.NfcTech) NfcTech = nfcModule.NfcTech;
+} catch (e) {
+    NfcManager = {
+        isSupported: async () => false,
+        start: async () => { },
+        requestTechnology: async () => { },
+        getTag: async () => null,
+        cancelTechnologyRequest: async () => { },
+    };
+}
 import { ThemedButton } from './ThemedButton';
 
 export function NFCScanner({ visible, onClose, onScan }: { visible: boolean, onClose: () => void, onScan: (id: string) => void }) {
