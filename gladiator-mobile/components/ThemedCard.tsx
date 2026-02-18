@@ -1,6 +1,7 @@
+import { Radius } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, type ViewProps } from 'react-native';
+import React, { useRef } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, View, type ViewProps } from 'react-native';
 
 export type ThemedCardProps = ViewProps & {
     lightColor?: string;
@@ -8,154 +9,88 @@ export type ThemedCardProps = ViewProps & {
     showBrackets?: boolean;
     showScanline?: boolean;
     headerTitle?: string;
+    pressable?: boolean;
+    onPress?: () => void;
 };
 
 export function ThemedCard({
     style,
     lightColor,
     darkColor,
-    showBrackets = true,
-    showScanline = false,
     headerTitle,
+    pressable = false,
+    onPress,
     children,
     ...otherProps
 }: ThemedCardProps) {
     const backgroundColor = useThemeColor({ light: lightColor, dark: darkColor }, 'card');
-    const tintColor = useThemeColor({}, 'tint');
-    const scanlineAnim = useRef(new Animated.Value(0)).current;
+    const cardBorder = useThemeColor({}, 'cardBorder');
+    const dimText = useThemeColor({}, 'dimText');
+    const scaleAnim = useRef(new Animated.Value(1)).current;
 
-    useEffect(() => {
-        if (showScanline) {
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(scanlineAnim, {
-                        toValue: 1,
-                        duration: 3000,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(scanlineAnim, {
-                        toValue: 0,
-                        duration: 0,
-                        useNativeDriver: true,
-                    }),
-                ])
-            ).start();
-        }
-    }, [showScanline, scanlineAnim]);
+    const handlePressIn = () => {
+        if (!pressable) return;
+        Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start();
+    };
+    const handlePressOut = () => {
+        if (!pressable) return;
+        Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 50, useNativeDriver: true }).start();
+    };
 
-    const translateY = scanlineAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [-10, 200], // Approximate height
-    });
-
-    return (
-        <View
-            style={[
-                styles.card,
-                {
-                    backgroundColor,
-                    borderColor: 'rgba(0, 191, 255, 0.25)',
-                    borderLeftColor: tintColor,
-                },
-                style
-            ]}
-            {...otherProps}
-        >
+    const cardContent = (
+        <>
             {headerTitle && (
-                <View style={[styles.header, { borderBottomColor: 'rgba(0, 191, 255, 0.15)' }]}>
-                    <Text style={[styles.headerText, { color: tintColor }]}>
-                        {headerTitle.toUpperCase()}
+                <View style={[styles.header, { borderBottomColor: cardBorder }]}>
+                    <Text style={[styles.headerText, { color: dimText }]}>
+                        {headerTitle}
                     </Text>
                 </View>
             )}
-
-            {showBrackets && (
-                <>
-                    <View style={[styles.corner, styles.topLeft, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.topRight, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.bottomLeft, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.bottomRight, { borderColor: tintColor }]} />
-                </>
-            )}
-
-            {showScanline && (
-                <Animated.View
-                    style={[
-                        styles.scanline,
-                        {
-                            backgroundColor: tintColor,
-                            opacity: 0.1,
-                            transform: [{ translateY }]
-                        }
-                    ]}
-                />
-            )}
-
-            <View style={styles.content}>
-                {children}
-            </View>
-        </View>
+            <View style={styles.content}>{children}</View>
+        </>
     );
-}
 
+    const cardStyle = [
+        styles.card,
+        {
+            backgroundColor,
+            borderColor: cardBorder,
+            ...Platform.select({
+                ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
+                android: { elevation: 2 },
+            }),
+        },
+        style,
+    ];
+
+    if (pressable) {
+        return (
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} style={cardStyle as any} {...otherProps}>
+                    {cardContent}
+                </Pressable>
+            </Animated.View>
+        );
+    }
+
+    return <View style={cardStyle} {...otherProps}>{cardContent}</View>;
+}
 
 const styles = StyleSheet.create({
     card: {
-        borderRadius: 0,
+        borderRadius: Radius.md,
         overflow: 'hidden',
         borderWidth: 1,
-        borderLeftWidth: 3,
-        position: 'relative',
     },
-    content: {
-        padding: 16,
-    },
+    content: { padding: 16 },
     header: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        backgroundColor: 'rgba(0, 191, 255, 0.05)',
     },
     headerText: {
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 1.5,
-        fontFamily: 'monospace',
+        fontSize: 13,
+        fontWeight: '600',
+        letterSpacing: 0.3,
     },
-    corner: {
-        position: 'absolute',
-        width: 8,
-        height: 8,
-        borderWidth: 1.5,
-    },
-    topLeft: {
-        top: 0,
-        left: 0,
-        borderRightWidth: 0,
-        borderBottomWidth: 0,
-    },
-    topRight: {
-        top: 0,
-        right: 0,
-        borderLeftWidth: 0,
-        borderBottomWidth: 0,
-    },
-    bottomLeft: {
-        bottom: 0,
-        left: 0,
-        borderRightWidth: 0,
-        borderTopWidth: 0,
-    },
-    bottomRight: {
-        bottom: 0,
-        right: 0,
-        borderLeftWidth: 0,
-        borderTopWidth: 0,
-    },
-    scanline: {
-        position: 'absolute',
-        height: 1.5,
-        width: '100%',
-        zIndex: 5,
-    }
 });

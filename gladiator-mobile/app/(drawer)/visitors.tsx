@@ -1,335 +1,110 @@
+import { Radius } from '@/constants/theme';
 import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedCard } from '@/components/ThemedCard';
 import { ThemedInput } from '@/components/ThemedInput';
-import { ThemedPicker, type PickerOption } from '@/components/ThemedPicker';
 import { ThemedScanner } from '@/components/ThemedScanner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { parseSAIDBarcode } from '@/utils/sa-id-parser';
-import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const VISIT_PURPOSES: PickerOption[] = [
-    { label: 'Official Visit', value: 'official', icon: 'briefcase.fill', color: '#3B82F6' },
-    { label: 'Private / Social', value: 'private', icon: 'person.fill', color: '#22C55E' },
-    { label: 'Delivery', value: 'delivery', icon: 'shippingbox.fill', color: '#F59E0B' },
-    { label: 'Maintenance', value: 'maintenance', icon: 'wrench.and.screwdriver.fill', color: '#9BA1A6' },
-    { label: 'Other', value: 'other', icon: 'ellipsis.circle.fill', color: '#9BA1A6' },
-];
 
 export default function VisitorsScreen() {
     const textColor = useThemeColor({}, 'text');
     const tintColor = useThemeColor({}, 'tint');
+    const dimText = useThemeColor({}, 'dimText');
+    const cardBorder = useThemeColor({}, 'cardBorder');
+    const accentColor = useThemeColor({}, 'accent');
     const successColor = useThemeColor({}, 'success');
     const insets = useSafeAreaInsets();
 
+    const [showScanner, setShowScanner] = useState(false);
     const [visitorName, setVisitorName] = useState('');
-    const [idNumber, setIdNumber] = useState('');
+    const [visitorId, setVisitorId] = useState('');
+    const [company, setCompany] = useState('');
     const [purpose, setPurpose] = useState('');
-    const [cellNumber, setCellNumber] = useState('');
+    const [hostName, setHostName] = useState('');
 
-    // Secondary fields
-    const [institution, setInstitution] = useState('');
-    const [vehicleReg, setVehicleReg] = useState('');
-    const [townVillage, setTownVillage] = useState('');
+    const fadeIn = useRef(new Animated.Value(0)).current;
+    const flashAnim = useRef(new Animated.Value(0)).current;
 
-    const [showAdvanced, setShowAdvanced] = useState(false);
-    const [scannerVisible, setScannerVisible] = useState(false);
+    useEffect(() => { Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start(); }, []);
 
-    const now = new Date();
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const dateString = now.toISOString().split('T')[0];
+    const flashGreen = () => Animated.sequence([
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(flashAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+    ]).start();
 
-    const handleScan = (data: string) => {
-        // Attempt to parse as South African ID Barcode (PDF417)
-        const idData = parseSAIDBarcode(data);
-
-        if (idData) {
-            setVisitorName(`${idData.firstName} ${idData.lastName}`.trim());
-            setIdNumber(idData.idNumber);
-            setScannerVisible(false);
-            Alert.alert('SUCCESS', 'PROTOCOL_SIGNAL: SA_ID_DATA_DECODED');
-            return;
-        }
-
-        // Fallback: Expected legacy format: "Name|ID|Phone"
-        try {
-            const [name, id, phone] = data.split('|');
-            if (name) setVisitorName(name);
-            if (id) setIdNumber(id);
-            if (phone) setCellNumber(phone);
-
-            setScannerVisible(false);
-            Alert.alert('SUCCESS', 'PROTOCOL_SIGNAL: LEGACY_DATA_CAPTURED');
-        } catch {
-            Alert.alert('ERROR', 'PROTOCOL_SIGNAL: UNRECOGNIZED_DATA_FORMAT');
-        }
+    const parseSAIdBarcode = (data: string) => {
+        if (data.length === 13) { setVisitorId(data); flashGreen(); }
+        else if (data.length > 20 && data.includes('|')) {
+            const parts = data.split('|');
+            if (parts.length >= 3) { setVisitorId(parts[0] || ''); setVisitorName((parts[1] + ' ' + (parts[2] || '')).trim()); flashGreen(); }
+        } else { setVisitorId(data.substring(0, 30)); flashGreen(); }
     };
+
+    const handleScan = (data: string) => { parseSAIdBarcode(data); setShowScanner(false); };
+
+    const handleSubmit = () => {
+        if (!visitorName || !visitorId) { Alert.alert('Missing Fields', 'Visitor name and ID are required.'); return; }
+        Alert.alert('Visitor Logged', `Badge: VIS-${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+        setVisitorName(''); setVisitorId(''); setCompany(''); setPurpose(''); setHostName('');
+    };
+
+    if (showScanner) return <ThemedScanner visible onScan={handleScan} onClose={() => setShowScanner(false)} title="Scan ID Document" />;
 
     return (
         <TacticalBackground style={styles.container}>
-            <ScrollView
-                contentContainerStyle={[
-                    styles.content,
-                    { paddingBottom: insets.bottom + 40 }
-                ]}
-            >
-                {/* Checkpoint Header */}
-                <View style={styles.systemHeader}>
-                    <View style={styles.headerInfo}>
-                        <View style={styles.statusRow}>
-                            <View style={[styles.statusDot, { backgroundColor: tintColor }]} />
-                            <Text style={[styles.systemText, { color: tintColor }]}>CHECKPOINT_PROTOCOL // SECURE_ACCESS</Text>
+            <Animated.View style={[styles.flash, { opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }), backgroundColor: successColor }]} pointerEvents="none" />
+
+            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+                <Animated.View style={{ opacity: fadeIn }}>
+                    {/* Scan Card */}
+                    <ThemedCard style={styles.scanCard} pressable onPress={() => setShowScanner(true)}>
+                        <View style={[styles.scanIcon, { backgroundColor: `${accentColor}10` }]}>
+                            <IconSymbol name="barcode.viewfinder" size={36} color={accentColor} />
                         </View>
-                        <Text style={[styles.timestamp, { color: '#808080' }]}>{dateString} // {timeString} UTC</Text>
-                    </View>
-                </View>
+                        <View>
+                            <Text style={[styles.scanTitle, { color: textColor }]}>Scan ID Document</Text>
+                            <Text style={[styles.scanSub, { color: dimText }]}>Tap to activate camera</Text>
+                        </View>
+                    </ThemedCard>
 
-                {/* Main Action: Scanner */}
-                <TouchableOpacity
-                    style={[styles.scanButton, { borderColor: tintColor, backgroundColor: 'rgba(0, 191, 255, 0.05)' }]}
-                    activeOpacity={0.7}
-                    onPress={() => setScannerVisible(true)}
-                >
-                    <View style={[styles.corner, styles.topLeft, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.topRight, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.bottomLeft, { borderColor: tintColor }]} />
-                    <View style={[styles.corner, styles.bottomRight, { borderColor: tintColor }]} />
-
-                    <IconSymbol name="qrcode.viewfinder" size={28} color={tintColor} />
-                    <Text style={[styles.scanButtonText, { color: tintColor }]}>INITIALIZE_IDENT_SCAN</Text>
-                </TouchableOpacity>
-
-                {/* Form Section */}
-                <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: tintColor }]}>VISITOR_ENTRY_LOG</Text>
-                    <View style={[styles.sectionLine, { backgroundColor: tintColor }]} />
-                </View>
-
-                <ThemedCard
-                    style={styles.mainForm}
-                    headerTitle="PRIMARY_IDENTIFICATION"
-                    showScanline={true}
-                >
-                    <ThemedInput
-                        label="FULL_LEGAL_NAME"
-                        placeholder="IDENTIFY SUBJECT"
-                        value={visitorName}
-                        onChangeText={setVisitorName}
-                        icon="person.fill"
-                    />
-
-                    <View style={styles.pickerContainer}>
-                        <ThemedPicker
-                            label="MISSION_PURPOSE"
-                            options={VISIT_PURPOSES}
-                            selectedValue={purpose}
-                            onValueChange={setPurpose}
-                        />
+                    <View style={styles.divider}>
+                        <View style={[styles.dividerLine, { backgroundColor: cardBorder }]} />
+                        <Text style={[styles.dividerText, { color: dimText }]}>or manual entry</Text>
+                        <View style={[styles.dividerLine, { backgroundColor: cardBorder }]} />
                     </View>
 
-                    <View style={styles.row}>
-                        <View style={styles.flex1}>
-                            <ThemedInput
-                                label="DOC_ID_NUMBER"
-                                placeholder="ID / PASSPORT"
-                                keyboardType="numeric"
-                                value={idNumber}
-                                onChangeText={setIdNumber}
-                                icon="person.text.rectangle.fill"
-                            />
+                    {/* Visitor Form */}
+                    <ThemedCard headerTitle="Visitor Registration">
+                        <ThemedInput label="Full Name" placeholder="Visitor's name" value={visitorName} onChangeText={setVisitorName} icon="person.fill" />
+                        <ThemedInput label="ID Number" placeholder="SA ID or passport" value={visitorId} onChangeText={setVisitorId} keyboardType="numeric" icon="creditcard.fill" />
+                        <ThemedInput label="Company" placeholder="Organization" value={company} onChangeText={setCompany} icon="building.2.fill" />
+                        <ThemedInput label="Purpose" placeholder="Reason for visit" value={purpose} onChangeText={setPurpose} icon="doc.text.fill" />
+                        <ThemedInput label="Host Contact" placeholder="Person to meet" value={hostName} onChangeText={setHostName} icon="phone.fill" />
+
+                        <View style={styles.submitWrap}>
+                            <ThemedButton title="Grant Access" variant="success" size="large" onPress={handleSubmit} />
                         </View>
-                        <View style={{ width: 12 }} />
-                        <View style={styles.flex1}>
-                            <ThemedInput
-                                label="COMMS_CELL"
-                                placeholder="PRIMARY_CH"
-                                keyboardType="phone-pad"
-                                value={cellNumber}
-                                onChangeText={setCellNumber}
-                                icon="phone.fill"
-                            />
-                        </View>
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.advancedToggle}
-                        activeOpacity={0.6}
-                        onPress={() => setShowAdvanced(!showAdvanced)}
-                    >
-                        <Text style={[styles.toggleText, { color: tintColor }]}>
-                            {showAdvanced ? '[-] CONCEAL_DATA_FIELDS' : '[+] REVEAL_LOGISTICS_FIELDS'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {showAdvanced && (
-                        <View style={styles.advancedFields}>
-                            <ThemedInput
-                                label="ORG_INSTITUTION"
-                                placeholder="REPRESENTING_ENTITY"
-                                value={institution}
-                                onChangeText={setInstitution}
-                                icon="building.2.fill"
-                            />
-                            <View style={styles.row}>
-                                <View style={styles.flex1}>
-                                    <ThemedInput
-                                        label="VEHICLE_REG"
-                                        placeholder="PLATE_ID"
-                                        value={vehicleReg}
-                                        onChangeText={setVehicleReg}
-                                        autoCapitalize="characters"
-                                        icon="car.fill"
-                                    />
-                                </View>
-                                <View style={{ width: 12 }} />
-                                <View style={styles.flex1}>
-                                    <ThemedInput
-                                        label="ORIG_SECTOR"
-                                        placeholder="TOWN_VILLAGE"
-                                        value={townVillage}
-                                        onChangeText={setTownVillage}
-                                        icon="map.fill"
-                                    />
-                                </View>
-                            </View>
-                        </View>
-                    )}
-                </ThemedCard>
-
-                <View style={styles.buttonContainer}>
-                    <ThemedButton
-                        title="EXECUTE_SESSION_LOG"
-                        variant="success"
-                        size="large"
-                        showBrackets={true}
-                        onPress={() => alert('PROTOCOL_SIGNAL: VISITOR_LOG_COMMITTED')}
-                    />
-                </View>
-
-                <ThemedScanner
-                    visible={scannerVisible}
-                    onClose={() => setScannerVisible(false)}
-                    onScan={handleScan}
-                    title="SCAN_VISITOR_CREDENTIALS"
-                />
+                    </ThemedCard>
+                </Animated.View>
             </ScrollView>
         </TacticalBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    content: {
-        padding: 16,
-    },
-    systemHeader: {
-        marginBottom: 24,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0, 191, 255, 0.2)',
-    },
-    headerInfo: {
-        gap: 4,
-    },
-    statusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    statusDot: {
-        width: 6,
-        height: 6,
-        marginRight: 8,
-    },
-    systemText: {
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 1.5,
-        fontFamily: 'monospace',
-    },
-    timestamp: {
-        fontSize: 9,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
-        gap: 12,
-    },
-    sectionTitle: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 2,
-        fontFamily: 'monospace',
-    },
-    sectionLine: {
-        flex: 1,
-        height: 1,
-        opacity: 0.2,
-    },
-    scanButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        borderWidth: 1,
-        position: 'relative',
-        marginBottom: 30,
-    },
-    scanButtonText: {
-        marginLeft: 12,
-        fontWeight: '900',
-        fontSize: 12,
-        letterSpacing: 2,
-        fontFamily: 'monospace',
-    },
-    mainForm: {
-        marginBottom: 20,
-    },
-    pickerContainer: {
-        marginVertical: 10,
-    },
-    row: {
-        flexDirection: 'row',
-        width: '100%',
-    },
-    flex1: {
-        flex: 1,
-    },
-    advancedToggle: {
-        marginTop: 15,
-        paddingVertical: 12,
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0, 191, 255, 0.1)',
-    },
-    toggleText: {
-        fontSize: 10,
-        fontWeight: '800',
-        fontFamily: 'monospace',
-        letterSpacing: 1.5,
-    },
-    advancedFields: {
-        marginTop: 10,
-        paddingTop: 10,
-    },
-    buttonContainer: {
-        marginTop: 10,
-    },
-    corner: {
-        position: 'absolute',
-        width: 10,
-        height: 10,
-        borderWidth: 2,
-    },
-    topLeft: { top: -1, left: -1, borderRightWidth: 0, borderBottomWidth: 0 },
-    topRight: { top: -1, right: -1, borderLeftWidth: 0, borderBottomWidth: 0 },
-    bottomLeft: { bottom: -1, left: -1, borderRightWidth: 0, borderTopWidth: 0 },
-    bottomRight: { bottom: -1, right: -1, borderLeftWidth: 0, borderTopWidth: 0 },
+    container: { flex: 1 },
+    flash: { ...StyleSheet.absoluteFillObject, zIndex: 100 },
+    content: { padding: 20 },
+    scanCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
+    scanIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+    scanTitle: { fontSize: 17, fontWeight: '700' },
+    scanSub: { fontSize: 13, marginTop: 2 },
+    divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+    dividerLine: { flex: 1, height: 1 },
+    dividerText: { fontSize: 13, marginHorizontal: 14 },
+    submitWrap: { marginTop: 12 },
 });

@@ -13,7 +13,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const nativeColorScheme = useNativeColorScheme();
-    const [theme, setTheme] = useState<Theme>('system');
+    const [theme, setTheme] = useState<Theme>('light');
 
     const colorScheme = theme === 'system' ? (nativeColorScheme ?? 'dark') : theme;
 

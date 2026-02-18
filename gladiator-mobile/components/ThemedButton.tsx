@@ -1,19 +1,22 @@
+import { Radius } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import React, { useRef } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View, type TouchableOpacityProps } from 'react-native';
 
 export type ThemedButtonProps = TouchableOpacityProps & {
     title: string;
-    variant?: 'primary' | 'success' | 'error' | 'warning' | 'outline';
+    variant?: 'primary' | 'success' | 'error' | 'warning' | 'outline' | 'secondary';
     size?: 'small' | 'medium' | 'large';
     showBrackets?: boolean;
+    icon?: string;
 };
 
 export function ThemedButton({
     title,
     variant = 'primary',
     size = 'medium',
-    showBrackets = false,
+    icon,
     style,
     ...otherProps
 }: ThemedButtonProps) {
@@ -21,80 +24,38 @@ export function ThemedButton({
     const successColor = useThemeColor({}, 'success');
     const errorColor = useThemeColor({}, 'error');
     const warningColor = useThemeColor({}, 'warning');
+    const secondary = useThemeColor({}, 'secondary');
+    const textColor = useThemeColor({}, 'text');
+    const cardColor = useThemeColor({}, 'card');
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
-    let backgroundColor = successColor;
-    let borderColor = successColor;
-    let buttonTextColor = '#000000';
+    let bg = tintColor;
+    let border = tintColor;
+    let fg = '#FFFFFF';
 
-    if (variant === 'error') {
-        backgroundColor = errorColor;
-        borderColor = errorColor;
-        buttonTextColor = '#FFFFFF';
-    } else if (variant === 'warning') {
-        backgroundColor = warningColor;
-        borderColor = warningColor;
-        buttonTextColor = '#000000';
-    } else if (variant === 'outline') {
-        backgroundColor = 'transparent';
-        borderColor = tintColor;
-        buttonTextColor = tintColor;
-    }
+    if (variant === 'success') { bg = successColor; border = successColor; }
+    else if (variant === 'error') { bg = errorColor; border = errorColor; }
+    else if (variant === 'warning') { bg = warningColor; border = warningColor; fg = '#0F1115'; }
+    else if (variant === 'secondary') { bg = cardColor; border = cardColor; fg = textColor; }
+    else if (variant === 'outline') { bg = 'transparent'; border = tintColor; fg = tintColor; }
 
-    const handlePressIn = () => {
-        Animated.spring(scaleAnim, {
-            toValue: 0.97,
-            useNativeDriver: true,
-        }).start();
-    };
+    const handlePressIn = () => Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start();
+    const handlePressOut = () => Animated.spring(scaleAnim, { toValue: 1, friction: 4, tension: 50, useNativeDriver: true }).start();
 
-    const handlePressOut = () => {
-        Animated.spring(scaleAnim, {
-            toValue: 1,
-            friction: 3,
-            tension: 40,
-            useNativeDriver: true,
-        }).start();
-    };
-
-    const paddingVertical = size === 'small' ? 8 : size === 'large' ? 16 : 12;
-    const fontSize = size === 'small' ? 11 : size === 'large' ? 15 : 13;
+    const py = size === 'small' ? 10 : size === 'large' ? 16 : 13;
+    const fs = size === 'small' ? 13 : size === 'large' ? 15 : 14;
 
     return (
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <TouchableOpacity
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                style={[
-                    styles.button,
-                    {
-                        backgroundColor,
-                        borderColor,
-                        borderWidth: 1.5,
-                        paddingVertical,
-                    },
-                    style
-                ]}
-                activeOpacity={0.8}
+                style={[styles.button, { backgroundColor: bg, borderColor: border, paddingVertical: py }, style]}
+                activeOpacity={0.85}
                 {...otherProps}
             >
-                {/* HUD Glow overlay for primary */}
-                {variant === 'primary' && (
-                    <View style={[StyleSheet.absoluteFill, styles.glow, { shadowColor: tintColor }]} />
-                )}
-
-                {showBrackets && (
-                    <>
-                        <View style={[styles.corner, styles.topLeft, { borderColor: buttonTextColor }]} />
-                        <View style={[styles.corner, styles.topRight, { borderColor: buttonTextColor }]} />
-                        <View style={[styles.corner, styles.bottomLeft, { borderColor: buttonTextColor }]} />
-                        <View style={[styles.corner, styles.bottomRight, { borderColor: buttonTextColor }]} />
-                    </>
-                )}
-
-                <Text style={[styles.text, { color: buttonTextColor, fontSize }]}>
-                    {title.toUpperCase()}
-                </Text>
+                {icon && <IconSymbol name={icon as any} size={fs + 2} color={fg} style={styles.icon} />}
+                <Text style={[styles.text, { color: fg, fontSize: fs }]}>{title}</Text>
             </TouchableOpacity>
         </Animated.View>
     );
@@ -102,33 +63,13 @@ export function ThemedButton({
 
 const styles = StyleSheet.create({
     button: {
-        borderRadius: 0,
+        borderRadius: Radius.sm,
         alignItems: 'center',
         justifyContent: 'center',
+        flexDirection: 'row',
         width: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    text: {
-        fontWeight: '800',
-        letterSpacing: 2,
-        fontFamily: 'monospace',
-    },
-    glow: {
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 10,
-        backgroundColor: 'transparent',
-    },
-    corner: {
-        position: 'absolute',
-        width: 6,
-        height: 6,
         borderWidth: 1,
-        opacity: 0.6,
     },
-    topLeft: { top: 2, left: 2, borderRightWidth: 0, borderBottomWidth: 0 },
-    topRight: { top: 2, right: 2, borderLeftWidth: 0, borderBottomWidth: 0 },
-    bottomLeft: { bottom: 2, left: 2, borderRightWidth: 0, borderTopWidth: 0 },
-    bottomRight: { bottom: 2, right: 2, borderLeftWidth: 0, borderTopWidth: 0 },
+    icon: { marginRight: 8 },
+    text: { fontWeight: '600' },
 });

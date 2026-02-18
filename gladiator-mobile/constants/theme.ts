@@ -1,61 +1,67 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Gladiator Pro — Security SaaS Design System
+ * Clean · Minimal · Enterprise-grade
+ * 
+ * Inspired by @VISUXCREATIVE minimal card aesthetic
+ * Powered by Gladiator Security palette
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
 export const Colors = {
   light: {
-    text: '#0A0A0A', // Near black for light mode
-    background: '#E0E0E0', // Light gray
-    tint: '#0066CC', // Tactical blue (darker for light mode)
-    icon: '#0A0A0A',
-    tabIconDefault: '#808080',
-    tabIconSelected: '#0066CC',
-    card: '#F5F5F5',
-    success: '#00BFFF', // Tactical blue
-    error: '#FF0000', // Red alert
-    warning: '#FFA500', // Amber alert
+    text: '#14161A',
+    background: '#EAEBEE',        // Warm off-white (not pure white)
+    tint: '#345E8A',              // Slightly deeper Steel Blue
+    icon: '#14161A',
+    tabIconDefault: '#5C6773',
+    tabIconSelected: '#345E8A',
+    card: '#F5F6F8',              // Soft warm white (not pure #FFF)
+    cardAlt: '#EDEEF1',
+    success: '#457D5D',           // Deeper Tactical Green
+    error: '#7A5234',             // Deeper Copper Brown
+    warning: '#A8893E',           // Deeper Muted Amber
+    accent: '#7E99B8',            // Deeper Ice Blue
+    dimText: '#6B737D',           // Darker muted text for contrast
+    secondary: '#4F5966',         // Deeper Slate Gray
+    glowColor: 'rgba(52, 94, 138, 0.06)',
+    cardBorder: 'rgba(0, 0, 0, 0.10)',  // More visible border
+    border: 'rgba(0, 0, 0, 0.10)',
   },
   dark: {
-    text: '#E0E0E0', // Off-white
-    background: '#000000', // Pure black
-    tint: '#00BFFF', // Tactical blue (electric/deep sky blue)
-    icon: '#E0E0E0',
-    tabIconDefault: '#808080',
-    tabIconSelected: '#00BFFF',
-    card: '#0A0A0A', // Near black
-    success: '#00BFFF', // Tactical blue
-    error: '#FF0000', // Red alert
-    warning: '#FFA500', // Amber alert
+    text: '#E6EAF0',          // Cloud White
+    background: '#0F1115',    // Carbon Black
+    tint: '#3A6EA5',          // Steel Blue — primary brand
+    icon: '#E6EAF0',
+    tabIconDefault: '#5C6773',
+    tabIconSelected: '#3A6EA5',
+    card: '#1C1F26',          // Gunmetal
+    cardAlt: '#232830',       // Slightly lighter gunmetal
+    success: '#4E8F6A',       // Tactical Green
+    error: '#8B5E3C',         // Copper Brown
+    warning: '#C2A24A',       // Muted Amber
+    accent: '#9FB4CC',        // Ice Blue
+    dimText: '#6B7280',       // Muted text
+    secondary: '#5C6773',     // Slate Gray
+    glowColor: 'rgba(58, 110, 165, 0.08)',
+    cardBorder: 'rgba(255, 255, 255, 0.06)',
+    border: 'rgba(255, 255, 255, 0.06)',
   },
 };
 
+/** Shared design tokens */
+export const Radius = {
+  sm: 8,
+  md: 14,
+  lg: 20,
+  full: 999,
+};
+
 export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
+  ios: { sans: 'System', mono: 'Menlo' },
+  default: { sans: 'normal', mono: 'monospace' },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+    mono: "SFMono-Regular, Menlo, Consolas, monospace",
   },
 });

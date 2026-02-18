@@ -1,166 +1,163 @@
+import { Radius } from '@/constants/theme';
+import { TENANT } from '@/constants/tenant';
+import { GladiatorLogo } from '@/components/GladiatorLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Drawer } from 'expo-router/drawer';
+import { DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
+import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { router } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function DrawerLayout() {
   const cardColor = useThemeColor({}, 'card');
   const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint'); // Tactical blue
+  const tintColor = useThemeColor({}, 'tint');
+  const dimText = useThemeColor({}, 'dimText');
+  const cardBorder = useThemeColor({}, 'cardBorder');
+  const background = useThemeColor({}, 'background');
+  const errorColor = useThemeColor({}, 'error');
+  const navigation = useNavigation();
 
   return (
     <Drawer
+      drawerContent={(props) => (
+        <View style={{ flex: 1, backgroundColor: background }}>
+          <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
+            {/* Header placeholder - already handled by screen header but good to have if needed */}
+            <View style={{ height: 60 }} />
+            <DrawerItemList {...props} />
+          </DrawerContentScrollView>
+          <View style={[styles.drawerFooter, { borderTopColor: cardBorder }]}>
+            <TouchableOpacity
+              style={[styles.drawerLogoutBtn, { backgroundColor: `${errorColor}08` }]}
+              onPress={() => router.replace('/login')}
+              activeOpacity={0.7}
+            >
+              <IconSymbol name="rectangle.portrait.and.arrow.right.fill" size={20} color={errorColor} />
+              <Text style={[styles.drawerLogoutText, { color: errorColor }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       screenOptions={{
         headerStyle: {
           backgroundColor: cardColor,
-          borderBottomWidth: 2,
-          borderBottomColor: tintColor,
           elevation: 0,
           shadowOpacity: 0,
+          borderBottomWidth: 1,
+          borderBottomColor: cardBorder as string,
         },
-        headerTintColor: tintColor,
+        headerTintColor: textColor,
         headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 16,
-          letterSpacing: 2,
-          textTransform: 'uppercase',
-          fontFamily: 'monospace',
+          fontWeight: '600',
+          fontSize: 17,
         },
         drawerStyle: {
-          backgroundColor: cardColor,
+          backgroundColor: background,
           width: 280,
-          borderRightWidth: 2,
-          borderRightColor: tintColor,
+          borderRightWidth: 0,
         },
         drawerActiveTintColor: tintColor,
-        drawerInactiveTintColor: '#808080',
-        drawerActiveBackgroundColor: 'rgba(0, 191, 255, 0.1)',
+        drawerInactiveTintColor: dimText,
+        drawerActiveBackgroundColor: `${tintColor}08`,
         drawerLabelStyle: {
-          fontWeight: '700',
-          fontSize: 13,
-          letterSpacing: 1.5,
-          textTransform: 'uppercase',
-          fontFamily: 'monospace',
+          fontWeight: '500',
+          fontSize: 15,
+          marginLeft: -8,
         },
         drawerItemStyle: {
-          borderRadius: 0,
+          borderRadius: Radius.sm,
+          marginHorizontal: 8,
           marginVertical: 2,
-          borderLeftWidth: 3,
-          borderLeftColor: 'transparent',
         },
         header: ({ options, route }) => (
-          <View style={[styles.header, { backgroundColor: cardColor, borderBottomColor: tintColor }]}>
-            <View style={styles.headerTop}>
-              <View style={styles.brandingContainer}>
-                <Text style={[styles.brandText, { color: tintColor }]}>GLADIATOR PRO</Text>
-                <Text style={[styles.tenantText, { color: '#808080' }]}>GPS-10293</Text>
+          <View style={[styles.header, { backgroundColor: cardColor, borderBottomColor: cardBorder }]}>
+            <View style={styles.headerRow}>
+              <TouchableOpacity
+                onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+                style={styles.menuBtn}
+                activeOpacity={0.6}
+              >
+                <View style={[styles.menuLine, { backgroundColor: textColor }]} />
+                <View style={[styles.menuLine, styles.menuLineShort, { backgroundColor: textColor }]} />
+                <View style={[styles.menuLine, { backgroundColor: textColor }]} />
+              </TouchableOpacity>
+              <View style={styles.brandRow}>
+                <GladiatorLogo size={32} color={tintColor} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={[styles.brand, { color: textColor }]}>Gladiator Pro</Text>
+                  <Text style={[styles.sub, { color: dimText }]}>{TENANT.name}</Text>
+                </View>
               </View>
-              <View style={styles.statusBar}>
-                <View style={[styles.statusDot, { backgroundColor: tintColor }]} />
-                <Text style={[styles.statusText, { color: tintColor }]}>ONLINE</Text>
+              <View style={styles.statusPill}>
+                <View style={[styles.statusDot, { backgroundColor: '#4E8F6A' }]} />
+                <Text style={[styles.statusText, { color: '#4E8F6A' }]}>Online</Text>
               </View>
             </View>
-            <Text style={[styles.screenTitle, { color: textColor }]}>
-              {options.title || route.name}
-            </Text>
+            <Text style={[styles.screenTitle, { color: dimText }]}>{options.title || route.name}</Text>
           </View>
         ),
       }}>
-      <Drawer.Screen
-        name="index"
-        options={{
-          drawerLabel: 'DASHBOARD',
-          title: 'TACTICAL OPS',
-          drawerIcon: ({ color }: { color: string }) => <IconSymbol size={22} name="house.fill" color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="ob-entry"
-        options={{
-          drawerLabel: 'OB ENTRY',
-          title: 'OB ENTRY LOG',
-          drawerIcon: ({ color }: { color: string }) => <IconSymbol size={22} name="pencil.and.outline" color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="patrol"
-        options={{
-          drawerLabel: 'PATROL',
-          title: 'PATROL CHECKPOINT',
-          drawerIcon: ({ color }: { color: string }) => <IconSymbol size={22} name="map.fill" color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="visitors"
-        options={{
-          drawerLabel: 'VISITORS',
-          title: 'VISITOR LOG',
-          drawerIcon: ({ color }: { color: string }) => <IconSymbol size={22} name="person.2.fill" color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="profile"
-        options={{
-          drawerLabel: 'PROFILE',
-          title: 'PERSONNEL FILE',
-          drawerIcon: ({ color }: { color: string }) => <IconSymbol size={22} name="person.crop.circle.fill" color={color} />,
-        }}
-      />
+      <Drawer.Screen name="index" options={{
+        drawerLabel: 'Dashboard', title: 'Dashboard',
+        drawerIcon: ({ color }) => <IconSymbol size={22} name="house.fill" color={color} />,
+      }} />
+      <Drawer.Screen name="ob-entry" options={{
+        drawerLabel: 'OB Entry', title: 'OB Entry',
+        drawerIcon: ({ color }) => <IconSymbol size={22} name="pencil.and.outline" color={color} />,
+      }} />
+      <Drawer.Screen name="patrol" options={{
+        drawerLabel: 'Patrol', title: 'Patrol',
+        drawerIcon: ({ color }) => <IconSymbol size={22} name="map.fill" color={color} />,
+      }} />
+      <Drawer.Screen name="visitors" options={{
+        drawerLabel: 'Visitors', title: 'Visitors',
+        drawerIcon: ({ color }) => <IconSymbol size={22} name="person.2.fill" color={color} />,
+      }} />
+      <Drawer.Screen name="profile" options={{
+        drawerLabel: 'Profile', title: 'Profile',
+        drawerIcon: ({ color }) => <IconSymbol size={22} name="person.crop.circle.fill" color={color} />,
+      }} />
     </Drawer>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 50,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 2,
+    paddingTop: 54, paddingBottom: 12, paddingHorizontal: 20,
+    borderBottomWidth: 1,
   },
-  headerTop: {
+  headerRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
+  },
+  brandRow: { flexDirection: 'row', alignItems: 'center' },
+  brand: { fontSize: 20, fontWeight: '700' },
+  sub: { fontSize: 13, fontWeight: '400', marginTop: 1 },
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(78, 143, 106, 0.08)',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6 },
+  statusText: { fontSize: 12, fontWeight: '600' },
+  screenTitle: { fontSize: 13, fontWeight: '500', marginTop: 4 },
+  menuBtn: { paddingRight: 14, paddingVertical: 4, justifyContent: 'center', gap: 4 },
+  menuLine: { width: 20, height: 2, borderRadius: 1 },
+  menuLineShort: { width: 14 },
+  drawerFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+  },
+  drawerLogoutBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: 14,
+    borderRadius: Radius.md,
+    gap: 12,
   },
-  brandingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandText: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 2,
-    fontFamily: 'monospace',
-  },
-  tenantText: {
-    fontSize: 10,
+  drawerLogoutText: {
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 1,
-    fontFamily: 'monospace',
-  },
-  screenTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    fontFamily: 'monospace',
-    textTransform: 'uppercase',
-  },
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1,
-    fontFamily: 'monospace',
   },
 });

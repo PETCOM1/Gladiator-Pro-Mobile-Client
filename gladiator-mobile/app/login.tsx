@@ -1,259 +1,88 @@
+import { Radius } from '@/constants/theme';
 import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedInput } from '@/components/ThemedInput';
+import { GladiatorLogo } from '@/components/GladiatorLogo';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function LoginScreen() {
     const textColor = useThemeColor({}, 'text');
     const tintColor = useThemeColor({}, 'tint');
-    const [tenant, setTenant] = useState('');
+    const dimText = useThemeColor({}, 'dimText');
+    const cardColor = useThemeColor({}, 'card');
+    const cardBorder = useThemeColor({}, 'cardBorder');
+
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [progress, setProgress] = useState(0);
 
-    const handleLogin = () => {
-        if (!tenant || !username || !password) {
-            alert('PROTOCOL_ERROR: INCOMPLETE_CREDENTIALS');
-            return;
-        }
-        router.replace('/');
-    };
+    const fadeIn = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setLoadingProgress(prev => (prev >= 1 ? 1 : prev + 0.05));
-        }, 100);
-        return () => clearInterval(interval);
+        Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     }, []);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const handleLogin = async () => {
+        if (!username || !password) { Alert.alert('Missing Fields', 'Please enter your credentials.'); return; }
+        setLoading(true); setProgress(0);
+        const interval = setInterval(() => {
+            setProgress(prev => { if (prev >= 100) { clearInterval(interval); return 100; } return prev + Math.random() * 15; });
+        }, 100);
+        setTimeout(() => { clearInterval(interval); setProgress(100); setLoading(false); router.replace('/(drawer)'); }, 1800);
+    };
 
     return (
         <TacticalBackground style={styles.container}>
-            <SafeAreaView style={styles.flex1} edges={['top', 'bottom']}>
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.flex1}
-                >
-                    <ScrollView contentContainerStyle={styles.scrollContent}>
-                        {/* System Header */}
-                        <View style={styles.systemHeader}>
-                            <View style={styles.headerRow}>
-                                <Text style={[styles.systemText, { color: tintColor }]}>SECURE_INIT_SEQUENCE_v1.0.8</Text>
-                                <View style={[styles.statusDot, { backgroundColor: loadingProgress < 1 ? '#FFA500' : tintColor }]} />
-                            </View>
-                            <Text style={[styles.timestampText, { color: '#808080' }]}>{timestamp} UTC // SYS_LOAD: {Math.round(loadingProgress * 100)}%</Text>
-                            <View style={styles.loadingTrack}>
-                                <View style={[styles.loadingFill, { width: `${loadingProgress * 100}%`, backgroundColor: tintColor }]} />
-                            </View>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+                <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                    <Animated.View style={[styles.content, { opacity: fadeIn }]}>
+                        <View style={[styles.logoCircle, { backgroundColor: `${tintColor}10` }]}>
+                            <GladiatorLogo size={42} color={tintColor} />
                         </View>
 
-                        {/* Logo Container */}
-                        <View style={styles.logoContainer}>
-                            <View style={[styles.logoIcon, { borderColor: tintColor }]}>
-                                <Text style={[styles.logoIconText, { color: tintColor }]}>GP</Text>
-                                <View style={[styles.logoBracket, styles.logoBL, { borderColor: tintColor }]} />
-                                <View style={[styles.logoBracket, styles.logoTR, { borderColor: tintColor }]} />
-                            </View>
-                            <Text style={[styles.logoText, { color: textColor }]}>GLADIATOR_PRO</Text>
-                            <Text style={[styles.sloganText, { color: tintColor }]}>TACTICAL_OPERATIONS_SYSTEM_ENGAGED</Text>
+                        <Text style={[styles.title, { color: textColor }]}>Gladiator Pro</Text>
+                        <Text style={[styles.subtitle, { color: dimText }]}>Security Command System</Text>
+
+                        <View style={[styles.card, { backgroundColor: cardColor, borderColor: cardBorder }]}>
+                            <ThemedInput label="Username" placeholder="Enter your username" value={username} onChangeText={setUsername} autoCapitalize="none" icon="person.fill" />
+                            <ThemedInput label="Password" placeholder="Enter your password" value={password} onChangeText={setPassword} secureTextEntry icon="lock.fill" />
+
+                            {loading && (
+                                <View style={styles.progressWrap}>
+                                    <View style={[styles.track, { backgroundColor: cardBorder }]}>
+                                        <View style={[styles.fill, { width: `${Math.min(progress, 100)}%`, backgroundColor: tintColor }]} />
+                                    </View>
+                                    <Text style={[styles.progressLabel, { color: dimText }]}>Authenticating... {Math.min(Math.round(progress), 100)}%</Text>
+                                </View>
+                            )}
+
+                            <ThemedButton title={loading ? 'Signing in...' : 'Sign In'} variant="primary" size="large" onPress={handleLogin} disabled={loading} />
                         </View>
 
-                        {/* Authentication Form */}
-                        <View style={styles.form}>
-                            <View style={styles.formHeaderContainer}>
-                                <View style={[styles.headerLine, { backgroundColor: tintColor }]} />
-                                <Text style={[styles.formHeader, { color: tintColor }]}>IDENTITY_VERIFICATION</Text>
-                                <View style={[styles.headerLine, { backgroundColor: tintColor }]} />
-                            </View>
-
-                            <ThemedInput
-                                label="ORG_TENANT_ID"
-                                placeholder="IDENTIFIER"
-                                value={tenant}
-                                onChangeText={setTenant}
-                                autoCapitalize="none"
-                                icon="building.2.fill"
-                            />
-                            <ThemedInput
-                                label="OPERATOR_CODE"
-                                placeholder="CREDENTIALS"
-                                value={username}
-                                onChangeText={setUsername}
-                                autoCapitalize="none"
-                                icon="person.fill"
-                            />
-                            <ThemedInput
-                                label="ENCRYPTED_KEY"
-                                placeholder="PASSPHRASE"
-                                secureTextEntry
-                                value={password}
-                                onChangeText={setPassword}
-                                icon="lock.fill"
-                            />
-
-                            <View style={styles.buttonContainer}>
-                                <ThemedButton
-                                    title="INITIALIZE_SESSION"
-                                    variant="primary"
-                                    size="large"
-                                    showBrackets={true}
-                                    onPress={handleLogin}
-                                />
-                            </View>
-
-                            <TouchableOpacity style={styles.recoveryBtn}>
-                                <Text style={[styles.forgotText, { color: '#808080' }]}>
-                                    SYS_RECOVERY_PROTOCOL_v4
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Footer */}
-                        <View style={styles.footer}>
-                            <Text style={styles.footerText}>PROPRIETARY_SECURE_KERNEL // (C) 2026</Text>
-                            <Text style={styles.footerText}>ENCRYPTION_LEVEL: AES-256_ACTIVE</Text>
-                        </View>
-                    </ScrollView>
-                </KeyboardAvoidingView>
-            </SafeAreaView>
+                        <Text style={[styles.footer, { color: dimText }]}>Gladiator Pro v2.0 · Enterprise Security</Text>
+                    </Animated.View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </TacticalBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    flex1: {
-        flex: 1,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        padding: 24,
-    },
-    systemHeader: {
-        marginBottom: 30,
-        paddingBottom: 12,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    systemText: {
-        fontSize: 10,
-        fontWeight: '900',
-        letterSpacing: 2,
-        fontFamily: 'monospace',
-    },
-    timestampText: {
-        fontSize: 9,
-        marginTop: 4,
-        fontFamily: 'monospace',
-        marginBottom: 8,
-    },
-    loadingTrack: {
-        height: 2,
-        width: '100%',
-        backgroundColor: 'rgba(0, 191, 255, 0.1)',
-    },
-    loadingFill: {
-        height: '100%',
-    },
-    logoContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
-    },
-    logoIcon: {
-        width: 100,
-        height: 100,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-        position: 'relative',
-    },
-    logoIconText: {
-        fontSize: 44,
-        fontWeight: '900',
-        fontFamily: 'monospace',
-    },
-    logoBracket: {
-        position: 'absolute',
-        width: 20,
-        height: 20,
-        borderWidth: 3,
-    },
-    logoBL: { bottom: -5, left: -5, borderRightWidth: 0, borderTopWidth: 0 },
-    logoTR: { top: -5, right: -5, borderLeftWidth: 0, borderBottomWidth: 0 },
-    logoText: {
-        fontSize: 32,
-        fontWeight: '900',
-        letterSpacing: 6,
-        fontFamily: 'monospace',
-    },
-    sloganText: {
-        fontSize: 9,
-        marginTop: 10,
-        letterSpacing: 2,
-        fontWeight: '700',
-        fontFamily: 'monospace',
-        textAlign: 'center',
-    },
-    statusDot: {
-        width: 6,
-        height: 6,
-    },
-    form: {
-        width: '100%',
-    },
-    formHeaderContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 15,
-        marginBottom: 25,
-    },
-    headerLine: {
-        flex: 1,
-        height: 1,
-        opacity: 0.3,
-    },
-    formHeader: {
-        fontSize: 11,
-        fontWeight: '900',
-        letterSpacing: 2,
-        fontFamily: 'monospace',
-    },
-    buttonContainer: {
-        marginTop: 30,
-        marginBottom: 20,
-    },
-    recoveryBtn: {
-        paddingVertical: 10,
-    },
-    forgotText: {
-        textAlign: 'center',
-        fontWeight: '700',
-        fontSize: 9,
-        letterSpacing: 1.5,
-        fontFamily: 'monospace',
-    },
-    footer: {
-        marginTop: 'auto',
-        paddingTop: 30,
-        alignItems: 'center',
-    },
-    footerText: {
-        color: '#606060',
-        fontSize: 9,
-        letterSpacing: 1.5,
-        fontFamily: 'monospace',
-        marginVertical: 2,
-    },
+    container: { flex: 1 },
+    flex: { flex: 1 },
+    scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+    content: { alignItems: 'center' },
+    logoCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    title: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
+    subtitle: { fontSize: 15, fontWeight: '400', marginBottom: 32 },
+    card: { width: '100%', borderRadius: Radius.md, borderWidth: 1, padding: 20, marginBottom: 24 },
+    progressWrap: { marginBottom: 16 },
+    track: { height: 4, borderRadius: 2, width: '100%', overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 2 },
+    progressLabel: { fontSize: 12, marginTop: 6 },
+    footer: { fontSize: 12 },
 });

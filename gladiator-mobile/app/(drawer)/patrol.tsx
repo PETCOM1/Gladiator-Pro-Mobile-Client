@@ -1,302 +1,126 @@
+import { Radius } from '@/constants/theme';
 import { NFCScanner } from '@/components/NFCScanner';
 import { TacticalBackground } from '@/components/TacticalBackground';
-import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedCard } from '@/components/ThemedCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { useEffect, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-// Safe import for NFC Manager to avoid crash in Expo Go
-let NfcManager: any;
-try {
-    NfcManager = require('react-native-nfc-manager').default;
-} catch (e) {
-    NfcManager = {
-        isSupported: async () => false,
-        start: async () => { },
-        isEnabled: async () => false,
-        goToNfcSetting: () => { },
-    };
-}
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 
-const INITIAL_CHECKPOINTS = [
-    { id: '1', name: 'Main Entrance', status: 'pending', time: '10:00 AM' },
-    { id: '2', name: 'Rear Gate', status: 'completed', time: '09:15 AM' },
-    { id: '3', name: 'Loading Dock', status: 'pending', time: '10:30 AM' },
-    { id: '4', name: 'Server Room', status: 'pending', time: '11:00 AM' },
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+const CHECKPOINTS = [
+    { id: '1', name: 'Main Gate', status: 'completed' },
+    { id: '2', name: 'Perimeter East', status: 'completed' },
+    { id: '3', name: 'Server Room', status: 'current' },
+    { id: '4', name: 'Parking Level B1', status: 'pending' },
+    { id: '5', name: 'Emergency Exit C', status: 'pending' },
+    { id: '6', name: 'Rooftop Access', status: 'pending' },
 ];
 
 export default function PatrolScreen() {
     const textColor = useThemeColor({}, 'text');
-    const successColor = useThemeColor({}, 'success');
     const tintColor = useThemeColor({}, 'tint');
+    const dimText = useThemeColor({}, 'dimText');
+    const cardBorder = useThemeColor({}, 'cardBorder');
+    const successColor = useThemeColor({}, 'success');
+    const warningColor = useThemeColor({}, 'warning');
     const insets = useSafeAreaInsets();
-    const [checkpoints, setCheckpoints] = useState(INITIAL_CHECKPOINTS);
-    const [scannerVisible, setScannerVisible] = useState(false);
-    const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
+
+    const [showNFC, setShowNFC] = useState(false);
+    const fadeIn = useRef(new Animated.Value(0)).current;
+    const progressAnim = useRef(new Animated.Value(0)).current;
+
+    const completed = CHECKPOINTS.filter(c => c.status === 'completed').length;
+    const progress = completed / CHECKPOINTS.length;
 
     useEffect(() => {
-        const checkNfc = async () => {
-            try {
-                const supported = await NfcManager.isSupported();
-                setNfcSupported(supported);
-            } catch (e) {
-                console.warn('NFC_CHECK_FAILED: Native module likely missing');
-                setNfcSupported(false);
-            }
-        };
-        checkNfc();
+        Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+        Animated.timing(progressAnim, { toValue: progress, duration: 1000, useNativeDriver: false }).start();
     }, []);
 
-    const handleCheckIn = (id: string) => {
-        setCheckpoints(prev => prev.map(cp =>
-            cp.id === id ? { ...cp, status: 'completed', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } : cp
-        ));
-        Alert.alert('PROTOCOL_SUCCESS', 'CHECKPOINT_VERIFIED // LOG_ENTRY_UPDATED');
-    };
+    const handleNFCScan = (id: string) => { Alert.alert('Checkpoint Verified', `Tag: ${id}`); setShowNFC(false); };
 
-    const handleScan = (tagId: string) => {
-        // In a real app, tagId would be mapped to a checkpoint ID in the database
-        // For this demo, we'll map common tag IDs or use a suffix logic
-        // Let's assume tags are labeled like "4A:5B:6C..." or we map specific ones
+    const getColor = (s: string) => s === 'completed' ? successColor : s === 'current' ? warningColor : dimText;
+    const getIcon = (s: string) => s === 'completed' ? 'checkmark.circle.fill' : s === 'current' ? 'bolt.circle.fill' : 'circle';
 
-        // Simulation mapping: tag IDs roughly starting with "cp-" or just matching index
-        const cpId = tagId.includes('cp-') ? tagId.replace('cp-', '') : '1';
-        const exists = checkpoints.find(cp => cp.id === cpId);
-
-        if (exists) {
-            handleCheckIn(cpId);
-        } else {
-            Alert.alert('PROTOCOL_ERROR', 'UNRECOGNIZED_TAG // UNAUTHORIZED_CHECKPOINT');
-        }
-    };
-
-    const toggleScanner = async () => {
-        if (nfcSupported === false) {
-            Alert.alert('HARDWARE_MISMATCH', 'DEVICE_NFC_NOT_SUPPORTED // USE_LEGACY_QR_FALLBACK');
-            return;
-        }
-
-        try {
-            const enabled = await NfcManager.isEnabled();
-            if (!enabled) {
-                Alert.alert('SENSOR_OFFLINE', 'NFC_DISABLED // PLEASE_ENABLE_NFC_IN_SETTINGS', [
-                    { text: 'SETTINGS', onPress: () => NfcManager.goToNfcSetting() },
-                    { text: 'CANCEL', style: 'cancel' }
-                ]);
-                return;
-            }
-            setScannerVisible(true);
-        } catch (e) {
-            Alert.alert('HARDWARE_ERROR', 'NFC_HARDWARE_UNAVAILABLE');
-        }
-    };
-
-    const renderItem = ({ item }: { item: typeof INITIAL_CHECKPOINTS[0] }) => (
-        <ThemedCard style={styles.checkpointCard}>
-            <View style={styles.checkpointInfo}>
-                <Text style={[styles.checkpointName, { color: textColor }]}>{item.name}</Text>
-                <Text style={[styles.checkpointTime, { color: '#9BA1A6' }]}>
-                    {item.status === 'completed' ? `Verified at ${item.time}` : `Scheduled: ${item.time}`}
-                </Text>
-            </View>
-            <View style={styles.checkpointAction}>
-                {item.status === 'completed' ? (
-                    <View style={styles.statusBadge}>
-                        <IconSymbol size={20} name="checkmark.circle.fill" color={successColor} />
-                        <Text style={[styles.statusText, { color: successColor }]}>Done</Text>
-                    </View>
-                ) : (
-                    <ThemedButton
-                        title="Check In"
-                        variant="outline"
-                        size="small"
-                        style={styles.checkInButton}
-                        onPress={() => handleCheckIn(item.id)}
-                    />
-                )}
-            </View>
-        </ThemedCard>
-    );
+    const size = 80, sw = 6, r = (size - sw) / 2, circ = 2 * Math.PI * r;
+    const dashOffset = progressAnim.interpolate({ inputRange: [0, 1], outputRange: [circ, circ * (1 - progress)] });
 
     return (
         <TacticalBackground style={styles.container}>
-            <View style={styles.header}>
-                <View style={styles.headerInfo}>
-                    <Text style={[styles.title, { color: textColor }]}>PATROL_CYCLE_04</Text>
-                    <Text style={[styles.subtitle, { color: '#808080' }]}>SECTOR: G-DELTA // ACTIVE_MONITORING</Text>
-                </View>
-                <View style={[styles.nfcContainer, { backgroundColor: 'rgba(0, 191, 255, 0.1)' }]}>
-                    <IconSymbol size={14} name="sensor.tag.radiowaves.forward.fill" color={tintColor} />
-                    <Text style={[styles.nfcText, { color: tintColor }]}>NFC_LINK_ACTIVE</Text>
-                </View>
-            </View>
+            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
+                <Animated.View style={{ opacity: fadeIn }}>
+                    {/* Progress */}
+                    <View style={styles.progressRow}>
+                        <View style={styles.ring}>
+                            <Svg width={size} height={size}>
+                                <Circle cx={size / 2} cy={size / 2} r={r} stroke={cardBorder as string} strokeWidth={sw} fill="none" />
+                                <AnimatedCircle
+                                    cx={size / 2} cy={size / 2} r={r} stroke={tintColor}
+                                    strokeWidth={sw} fill="none" strokeLinecap="round"
+                                    strokeDasharray={`${circ} ${circ}`} strokeDashoffset={dashOffset}
+                                    rotation="-90" origin={`${size / 2}, ${size / 2}`}
+                                />
+                            </Svg>
+                            <Text style={[styles.ringText, { color: tintColor }]}>{Math.round(progress * 100)}%</Text>
+                        </View>
+                        <View style={styles.progressInfo}>
+                            <Text style={[styles.patrolTitle, { color: textColor }]}>Active Patrol</Text>
+                            <Text style={[styles.patrolSub, { color: dimText }]}>{completed} of {CHECKPOINTS.length} checkpoints cleared</Text>
+                        </View>
+                    </View>
 
-            <FlatList
-                data={checkpoints}
-                renderItem={renderItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={[
-                    styles.listContent,
-                    { paddingBottom: insets.bottom + 100 }
-                ]}
-            />
+                    {/* Checkpoints */}
+                    <Text style={[styles.sectionLabel, { color: dimText }]}>Checkpoints</Text>
+                    <ThemedCard>
+                        {CHECKPOINTS.map((cp, idx) => (
+                            <View key={cp.id} style={[styles.cpRow, idx < CHECKPOINTS.length - 1 && { borderBottomWidth: 1, borderBottomColor: cardBorder }]}>
+                                <View style={[styles.cpIcon, { backgroundColor: `${getColor(cp.status)}10` }]}>
+                                    <IconSymbol name={getIcon(cp.status) as any} size={20} color={getColor(cp.status)} />
+                                </View>
+                                <View style={styles.cpInfo}>
+                                    <Text style={[styles.cpName, { color: textColor }]}>{cp.name}</Text>
+                                    <Text style={[styles.cpStatus, { color: getColor(cp.status) }]}>
+                                        {cp.status.charAt(0).toUpperCase() + cp.status.slice(1)}
+                                    </Text>
+                                </View>
+                            </View>
+                        ))}
+                    </ThemedCard>
+                </Animated.View>
+            </ScrollView>
 
+            {/* FAB */}
             <TouchableOpacity
-                style={[
-                    styles.fab,
-                    {
-                        backgroundColor: tintColor,
-                        bottom: insets.bottom + 20
-                    }
-                ]}
-                activeOpacity={0.8}
-                onPress={toggleScanner}
+                style={[styles.fab, { backgroundColor: tintColor }]}
+                onPress={() => setShowNFC(true)}
+                activeOpacity={0.85}
             >
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-                <IconSymbol name="sensor.tag.radiowaves.forward.fill" size={32} color="#000" />
+                <IconSymbol name="sensor.tag.radiowaves.forward.fill" size={26} color="#FFFFFF" />
             </TouchableOpacity>
 
-            <NFCScanner
-                visible={scannerVisible}
-                onClose={() => setScannerVisible(false)}
-                onScan={handleScan}
-            />
-
-            <View style={styles.footer}>
-                <Text style={[styles.timestamp, { color: '#808080' }]}>
-                    LAST_SYNC: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} UTC
-                </Text>
-            </View>
+            <NFCScanner visible={showNFC} onClose={() => setShowNFC(false)} onScan={handleNFCScan} />
         </TacticalBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        padding: 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0, 191, 255, 0.2)',
-    },
-    headerInfo: {
-        flex: 1,
-    },
-    title: {
-        fontSize: 14,
-        fontWeight: '900',
-        fontFamily: 'monospace',
-        letterSpacing: 2,
-    },
-    subtitle: {
-        fontSize: 9,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-        marginTop: 4,
-    },
-    nfcContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderWidth: 1,
-        borderColor: 'rgba(0, 191, 255, 0.3)',
-    },
-    nfcText: {
-        fontSize: 9,
-        fontWeight: '900',
-        marginLeft: 6,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-    },
-    listContent: {
-        padding: 16,
-    },
-    checkpointCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-        padding: 16,
-    },
-    checkpointInfo: {
-        flex: 1,
-    },
-    checkpointName: {
-        fontSize: 14,
-        fontWeight: '800',
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-    },
-    checkpointTime: {
-        fontSize: 10,
-        fontFamily: 'monospace',
-        marginTop: 4,
-    },
-    checkpointAction: {
-        marginLeft: 12,
-    },
-    checkInButton: {
-        width: 110,
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderWidth: 1,
-        borderColor: 'rgba(34, 197, 94, 0.3)',
-    },
-    statusText: {
-        marginLeft: 6,
-        fontWeight: '900',
-        fontSize: 10,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-    },
-    fab: {
-        position: 'absolute',
-        right: 20,
-        width: 70,
-        height: 70,
-        alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.5,
-        shadowRadius: 5,
-    },
-    corner: {
-        position: 'absolute',
-        width: 12,
-        height: 12,
-        borderWidth: 2,
-        borderColor: '#000',
-    },
-    topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
-    topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
-    bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
-    bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
-    footer: {
-        padding: 16,
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0, 191, 255, 0.1)',
-    },
-    timestamp: {
-        fontSize: 9,
-        fontFamily: 'monospace',
-        letterSpacing: 1,
-    },
+    container: { flex: 1 },
+    content: { padding: 20 },
+    progressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 16 },
+    ring: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center' },
+    ringText: { position: 'absolute', fontSize: 16, fontWeight: '700' },
+    progressInfo: { flex: 1 },
+    patrolTitle: { fontSize: 20, fontWeight: '700' },
+    patrolSub: { fontSize: 13, marginTop: 4 },
+    sectionLabel: { fontSize: 15, fontWeight: '600', marginBottom: 12 },
+    cpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
+    cpIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    cpInfo: { flex: 1 },
+    cpName: { fontSize: 15, fontWeight: '600' },
+    cpStatus: { fontSize: 12, marginTop: 2 },
+    fab: { position: 'absolute', bottom: 28, right: 24, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
 });

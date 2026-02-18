@@ -32,7 +32,8 @@ const MAPPING = {
   'person.crop.circle.fill': 'account-circle',
 
   // OB Entry / Incidents
-  'shield.slash.fill': 'shield-off',
+  'shield.slash.fill': 'remove-moderator',
+  'shield.checkered': 'verified-user',
   'flame.fill': 'whatshot',
   'cross.case.fill': 'medical-services',
   'hammer.fill': 'handyman',
@@ -44,6 +45,13 @@ const MAPPING = {
   'exclamationmark.circle.fill': 'error',
   'checkmark.shield.fill': 'verified-user',
   'camera.fill': 'photo-camera',
+  'xmark.circle.fill': 'cancel',
+  'minus.circle.fill': 'remove-circle',
+  'equal.circle.fill': 'drag-handle',
+  'xmark.octagon.fill': 'dangerous',
+  'bag.fill': 'shopping-bag',
+  'doc.text.fill': 'description',
+  'creditcard.fill': 'credit-card',
 
   // Visitors
   'briefcase.fill': 'business-center',
@@ -53,12 +61,22 @@ const MAPPING = {
   'person.text.rectangle.fill': 'assignment-ind',
   'phone.fill': 'phone',
   'car.fill': 'directions-car',
+  'barcode.viewfinder': 'qr-code-scanner',
 
-  // Patrol
+  // Patrol & Scanner
   'checkmark.circle.fill': 'check-circle',
   'sensor.tag.radiowaves.forward.fill': 'nfc',
   'qrcode.viewfinder': 'qr-code-scanner',
+
+  // Profile & Navigation
+  'chevron.up.chevron.down': 'unfold-more',
+  'checkmark': 'check',
+  'sun.max.fill': 'light-mode',
+  'moon.fill': 'dark-mode',
+  'gear': 'settings',
+  'lock.shield.fill': 'security',
 } as IconMapping;
+
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

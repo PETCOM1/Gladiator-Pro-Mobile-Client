@@ -1,42 +1,41 @@
+import { Radius } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 export type ThemedInputProps = TextInputProps & {
     label?: string;
     error?: string;
-    icon?: any; // SF Symbol name
+    icon?: any;
 };
 
 export function ThemedInput({ label, error, icon, style, ...otherProps }: ThemedInputProps) {
     const textColor = useThemeColor({}, 'text');
     const backgroundColor = useThemeColor({}, 'card');
     const errorColor = useThemeColor({}, 'error');
-    const tintColor = useThemeColor({}, 'tint'); // Tactical green
+    const tintColor = useThemeColor({}, 'tint');
+    const cardBorder = useThemeColor({}, 'cardBorder');
+    const dimText = useThemeColor({}, 'dimText');
+    const [isFocused, setIsFocused] = useState(false);
+
+    const handleFocus = (e: any) => { setIsFocused(true); otherProps.onFocus?.(e); };
+    const handleBlur = (e: any) => { setIsFocused(false); otherProps.onBlur?.(e); };
+
+    const borderColor = error ? errorColor : isFocused ? tintColor : cardBorder;
 
     return (
         <View style={styles.container}>
-            {label && <Text style={[styles.label, { color: tintColor }]}>{label}</Text>}
-            <View style={styles.inputWrapper}>
+            {label && <Text style={[styles.label, { color: dimText }]}>{label}</Text>}
+            <View style={[styles.inputWrapper, { backgroundColor, borderColor, borderWidth: 1 }]}>
                 {icon && (
-                    <View style={styles.iconContainer}>
-                        <IconSymbol name={icon} size={18} color={tintColor} />
-                    </View>
+                    <IconSymbol name={icon} size={18} color={isFocused ? tintColor : dimText} style={styles.icon} />
                 )}
-                <View style={[styles.accentBar, { backgroundColor: tintColor }]} />
                 <TextInput
-                    style={[
-                        styles.input,
-                        {
-                            backgroundColor,
-                            color: textColor,
-                            borderColor: error ? errorColor : tintColor,
-                            borderWidth: 1,
-                            paddingLeft: icon ? 44 : 14,
-                        },
-                        style
-                    ]}
-                    placeholderTextColor="#808080"
+                    style={[styles.input, { color: textColor, paddingLeft: icon ? 0 : 14 }, style]}
+                    placeholderTextColor={dimText}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
                     {...otherProps}
                 />
             </View>
@@ -46,48 +45,28 @@ export function ThemedInput({ label, error, icon, style, ...otherProps }: Themed
 }
 
 const styles = StyleSheet.create({
-    container: {
-        marginVertical: 10,
-        width: '100%',
-    },
+    container: { marginVertical: 6, width: '100%' },
     label: {
-        fontSize: 11,
+        fontSize: 13,
         marginBottom: 6,
-        fontWeight: '700',
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
+        fontWeight: '500',
     },
     inputWrapper: {
-        position: 'relative',
-        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: Radius.sm,
+        paddingHorizontal: 14,
+        minHeight: 48,
     },
-    accentBar: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 3,
-        zIndex: 2,
-    },
-    iconContainer: {
-        position: 'absolute',
-        left: 14,
-        top: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        zIndex: 1,
-    },
+    icon: { marginRight: 10 },
     input: {
-        padding: 14,
-        borderRadius: 0, // Sharp, angular
+        flex: 1,
+        paddingVertical: 12,
         fontSize: 15,
-        fontFamily: 'monospace',
     },
     errorText: {
-        fontSize: 11,
+        fontSize: 12,
         marginTop: 4,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        fontWeight: '500',
     },
 });
