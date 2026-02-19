@@ -1,8 +1,8 @@
-import { Radius } from '@/constants/theme';
+import { GladiatorLogo } from '@/components/GladiatorLogo';
 import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedInput } from '@/components/ThemedInput';
-import { GladiatorLogo } from '@/components/GladiatorLogo';
+import { Radius } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -40,11 +40,10 @@ export default function LoginScreen() {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                     <Animated.View style={[styles.content, { opacity: fadeIn }]}>
-                        <View style={[styles.logoCircle, { backgroundColor: `${tintColor}10` }]}>
-                            <GladiatorLogo size={42} color={tintColor} />
+                        <View style={styles.logoContainer}>
+                            <GladiatorLogo size={100} />
                         </View>
 
-                        <Text style={[styles.title, { color: textColor }]}>Gladiator Pro</Text>
                         <Text style={[styles.subtitle, { color: dimText }]}>Security Command System</Text>
 
                         <View style={[styles.card, { backgroundColor: cardColor, borderColor: cardBorder }]}>
@@ -76,8 +75,7 @@ const styles = StyleSheet.create({
     flex: { flex: 1 },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
     content: { alignItems: 'center' },
-    logoCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    title: { fontSize: 28, fontWeight: '700', marginBottom: 4 },
+    logoContainer: { width: '100%', height: 100, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     subtitle: { fontSize: 15, fontWeight: '400', marginBottom: 32 },
     card: { width: '100%', borderRadius: Radius.md, borderWidth: 1, padding: 20, marginBottom: 24 },
     progressWrap: { marginBottom: 16 },

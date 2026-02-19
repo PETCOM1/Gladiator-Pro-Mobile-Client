@@ -1,12 +1,12 @@
-import { Radius } from '@/constants/theme';
-import { TENANT } from '@/constants/tenant';
 import { GladiatorLogo } from '@/components/GladiatorLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { TENANT } from '@/constants/tenant';
+import { Radius } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { Drawer } from 'expo-router/drawer';
-import { DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
-import { useNavigation, DrawerActions } from '@react-navigation/native';
+import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
+import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { router } from 'expo-router';
+import { Drawer } from 'expo-router/drawer';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -72,23 +72,25 @@ export default function DrawerLayout() {
           marginHorizontal: 8,
           marginVertical: 2,
         },
-        header: ({ options, route }) => (
+        header: ({ navigation: drawerNav, options, route }) => (
           <View style={[styles.header, { backgroundColor: cardColor, borderBottomColor: cardBorder }]}>
             <View style={styles.headerRow}>
-              <TouchableOpacity
-                onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-                style={styles.menuBtn}
-                activeOpacity={0.6}
-              >
-                <View style={[styles.menuLine, { backgroundColor: textColor }]} />
-                <View style={[styles.menuLine, styles.menuLineShort, { backgroundColor: textColor }]} />
-                <View style={[styles.menuLine, { backgroundColor: textColor }]} />
-              </TouchableOpacity>
-              <View style={styles.brandRow}>
-                <GladiatorLogo size={32} color={tintColor} />
-                <View style={{ marginLeft: 10 }}>
-                  <Text style={[styles.brand, { color: textColor }]}>Gladiator Pro</Text>
-                  <Text style={[styles.sub, { color: dimText }]}>{TENANT.name}</Text>
+              <View style={styles.leftGroup}>
+                <TouchableOpacity
+                  onPress={() => drawerNav.dispatch(DrawerActions.toggleDrawer())}
+                  style={styles.menuBtn}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <View style={[styles.menuLine, { backgroundColor: textColor }]} />
+                  <View style={[styles.menuLine, styles.menuLineShort, { backgroundColor: textColor }]} />
+                  <View style={[styles.menuLine, { backgroundColor: textColor }]} />
+                </TouchableOpacity>
+                <View style={styles.brandRow}>
+                  <GladiatorLogo size={42} />
+                  <View style={{ marginLeft: 8 }}>
+                    <Text style={[styles.sub, { color: dimText }]}>{TENANT.name}</Text>
+                  </View>
                 </View>
               </View>
               <View style={styles.statusPill}>
@@ -133,6 +135,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
   },
   brandRow: { flexDirection: 'row', alignItems: 'center' },
+  leftGroup: { flexDirection: 'row', alignItems: 'center' },
   brand: { fontSize: 20, fontWeight: '700' },
   sub: { fontSize: 13, fontWeight: '400', marginTop: 1 },
   statusPill: {
