@@ -28,11 +28,43 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (!username || !password) { Alert.alert('Missing Fields', 'Please enter your credentials.'); return; }
-        setLoading(true); setProgress(0);
+        setLoading(true);
+        setProgress(0);
+
         const interval = setInterval(() => {
-            setProgress(prev => { if (prev >= 100) { clearInterval(interval); return 100; } return prev + Math.random() * 15; });
+            setProgress(prev => { if (prev >= 90) return prev; return prev + Math.random() * 5; });
         }, 100);
-        setTimeout(() => { clearInterval(interval); setProgress(100); setLoading(false); router.replace('/(drawer)'); }, 1800);
+
+        try {
+            // Using 10.0.2.2 for Android Emulator, localhost for others. 
+            // In a real prod app, this would be an ENV variable.
+            const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+
+            const response = await fetch(`${baseUrl}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: username, password }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Authentication failed');
+            }
+
+            // Successfully authenticated
+            clearInterval(interval);
+            setProgress(100);
+            setLoading(false);
+
+            // Note: In a real app, we would store the token (e.g., SecureStore)
+            router.replace('/(drawer)');
+        } catch (error: any) {
+            clearInterval(interval);
+            setLoading(false);
+            setProgress(0);
+            Alert.alert('Login Failed', error.message || 'An unexpected error occurred.');
+        }
     };
 
     return (
