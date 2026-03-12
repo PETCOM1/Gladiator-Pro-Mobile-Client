@@ -1,0 +1,6 @@
+.expo/
+node_modules/
+*.log
+.vscode/
+scripts/
+tsc_errors.log

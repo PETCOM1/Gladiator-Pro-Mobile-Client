@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 import { ProtocolReminder } from '@/components/ProtocolReminder';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -18,32 +19,34 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AppThemeProvider>
-      <RootLayoutNav />
-    </AppThemeProvider>
+    <AuthProvider>
+      <AppThemeProvider>
+        <RootLayoutNav />
+      </AppThemeProvider>
+    </AuthProvider>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const rootNavigationState = useRootNavigationState();
+  const { user, loading } = useAuth();
 
   // Simple initial redirect to login
   useEffect(() => {
     // Wait for the navigation to be fully ready
-    if (!rootNavigationState?.key) return;
+    if (!rootNavigationState?.key || loading) return;
 
     // Add a small delay to ensure the layout is fully mounted
     const timer = setTimeout(() => {
-      // In a real app, check auth state here
-      const isAuthenticated = false;
-      if (!isAuthenticated) {
+      // Check auth state from context
+      if (!user) {
         router.replace('/login');
       }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [rootNavigationState?.key]);
+  }, [rootNavigationState?.key, user, loading]);
 
   return (
     <SafeAreaProvider>

@@ -6,9 +6,12 @@ import { ThemedInput } from '@/components/ThemedInput';
 import { ThemedPicker, PickerOption } from '@/components/ThemedPicker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAuth } from '@/context/AuthContext';
+import { ThemedToast } from '@/components/ThemedToast';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const INCIDENT_TYPES: PickerOption[] = [
@@ -18,6 +21,7 @@ const INCIDENT_TYPES: PickerOption[] = [
     { label: 'Medical Emergency', value: 'medical', icon: 'cross.case.fill', color: '#8B5E3C' },
     { label: 'Fire / Hazard', value: 'fire', icon: 'flame.fill', color: '#8B5E3C' },
     { label: 'Theft', value: 'theft', icon: 'bag.fill', color: '#5C6773' },
+    { label: 'All Clear / Status Normal', value: 'all_clear', icon: 'shield.checkered', color: '#4E8F6A' },
     { label: 'Other', value: 'other', icon: 'questionmark.circle.fill', color: '#5C6773' },
 ];
 
@@ -38,6 +42,7 @@ export default function OBEntryScreen() {
     const cardColor = useThemeColor({}, 'card');
     const insets = useSafeAreaInsets();
 
+    const { user, token } = useAuth();
     const [incidentType, setIncidentType] = useState('');
     const [severity, setSeverity] = useState('');
     const [description, setDescription] = useState('');
@@ -45,19 +50,123 @@ export default function OBEntryScreen() {
     const [image, setImage] = useState<string | null>(null);
     const [confirmVisible, setConfirmVisible] = useState(false);
     const [showForm, setShowForm] = useState(false);
+    const [entries, setEntries] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+        visible: false,
+        message: '',
+        type: 'success'
+    });
+
+    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.199:5000';
+
+    const fetchEntries = async () => {
+        if (!token) return;
+        setLoading(true);
+        try {
+            const response = await fetch(`${baseUrl}/api/ob-entries`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (response.ok) setEntries(data);
+        } catch (error) {
+            console.error('Error fetching entries:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { fetchEntries(); }, [token]);
 
     const handleSubmit = () => {
         if (!incidentType || !severity || !description) { Alert.alert('Missing Fields', 'Please fill in all required fields.'); return; }
         setConfirmVisible(true);
     };
 
-    const confirmSubmit = () => {
+    const confirmSubmit = async () => {
         setConfirmVisible(false);
-        setIncidentType(''); setSeverity(''); setDescription(''); setLocation(''); setImage(null);
-        Alert.alert('Report Logged', `Ref: IR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`);
+        setIsSubmitting(true);
+        try {
+            const response = await fetch(`${baseUrl}/api/ob-entries`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    incidentType,
+                    severity,
+                    location,
+                    description,
+                    image
+                }),
+            });
+
+            if (response.ok) {
+                const newEntry = await response.json();
+                setIncidentType(''); setSeverity(''); setDescription(''); setLocation(''); setImage(null);
+                setShowForm(false);
+                Alert.alert('Report Logged', `Ref: ${newEntry.id.substring(0, 8).toUpperCase()}`);
+                fetchEntries();
+            } else {
+                Alert.alert('Error', 'Failed to save the report. Please try again.');
+            }
+        } catch (error) {
+            console.error('Submit error:', error);
+            Alert.alert('Network Error', 'Could not connect to the server.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const handleAllClear = () => Alert.alert('All Clear', 'No incidents to report. Status normal.');
+    const confirmAllClear = async () => {
+        setIsSubmitting(true);
+        try {
+            console.log('[OB] Submitting All Clear to:', `${baseUrl}/api/ob-entries`);
+            const response = await fetch(`${baseUrl}/api/ob-entries`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    incidentType: 'all_clear',
+                    severity: 'low',
+                    location: 'Post/Shift',
+                    description: 'Status Normal - No incidents to report.',
+                    image: null
+                }),
+            });
+
+            if (response.ok) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setToast({ visible: true, message: 'All Clear recorded successfully.', type: 'success' });
+                fetchEntries();
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                console.error('[OB] All Clear Fail:', response.status, errData);
+                Alert.alert('Error', `Failed to log status (${response.status}).`);
+            }
+        } catch (error) {
+            console.error('[OB] All Clear Network Error:', error);
+            Alert.alert('Network Error', 'Check your connection to the server.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleAllClear = () => {
+        console.log('[OB] handleAllClear pressed');
+        Alert.alert(
+            'Confirm All Clear',
+            'Are you sure you want to log a "Status Normal / All Clear" report for this hour?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Confirm', onPress: confirmAllClear }
+            ]
+        );
+    };
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.7 });
@@ -68,15 +177,17 @@ export default function OBEntryScreen() {
         <TacticalBackground style={styles.container}>
             <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
                 {/* All Clear */}
-                <ThemedCard style={styles.allClear} pressable onPress={handleAllClear}>
-                    <View style={[styles.shieldIcon, { backgroundColor: `${successColor}10` }]}>
-                        <IconSymbol size={32} name="shield.checkered" color={successColor} />
-                    </View>
-                    <View>
-                        <Text style={[styles.allClearTitle, { color: successColor }]}>All Clear</Text>
-                        <Text style={[styles.allClearSub, { color: dimText }]}>No incidents to report</Text>
-                    </View>
-                </ThemedCard>
+                <TouchableOpacity activeOpacity={0.7} onPress={handleAllClear}>
+                    <ThemedCard style={styles.allClear}>
+                        <View style={[styles.shieldIcon, { backgroundColor: `${successColor}10` }]}>
+                            <IconSymbol size={32} name="shield.checkered" color={successColor} />
+                        </View>
+                        <View>
+                            <Text style={[styles.allClearTitle, { color: successColor }]}>All Clear</Text>
+                            <Text style={[styles.allClearSub, { color: dimText }]}>No incidents to report</Text>
+                        </View>
+                    </ThemedCard>
+                </TouchableOpacity>
 
                 <View style={styles.divider}>
                     <View style={[styles.dividerLine, { backgroundColor: cardBorder }]} />
@@ -120,13 +231,65 @@ export default function OBEntryScreen() {
                         )}
 
                         <View style={styles.submitWrap}>
-                            <ThemedButton title="Submit Report" variant="primary" size="large" onPress={handleSubmit} />
+                            <ThemedButton title="Submit Report" variant="primary" size="large" onPress={handleSubmit} disabled={isSubmitting} />
+                            {isSubmitting && <ActivityIndicator style={{ marginTop: 12 }} color={tintColor} />}
                             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
                                 <Text style={{ color: dimText, fontSize: 13, fontWeight: '500' }}>Cancel / Hide Form</Text>
                             </TouchableOpacity>
                         </View>
                     </ThemedCard>
                 )}
+
+                {/* Recent Entries */}
+                <View style={{ marginTop: 24 }}>
+                    <View style={styles.entriesHeader}>
+                        <Text style={[styles.sectionLabel, { color: dimText, marginTop: 0 }]}>Recent Entries</Text>
+                        <TouchableOpacity onPress={fetchEntries}>
+                            <IconSymbol name="arrow.clockwise" size={18} color={tintColor} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {loading ? (
+                        <ActivityIndicator color={tintColor} style={{ marginTop: 12 }} />
+                    ) : entries.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={{ color: dimText }}>No entries found for this shift.</Text>
+                        </View>
+                    ) : (
+                        entries.map((entry) => {
+                            const isAllClear = entry.incidentType === 'all_clear';
+                            const badgeColor = isAllClear ? successColor : tintColor;
+                            
+                            return (
+                                <ThemedCard key={entry.id} style={styles.entryItem}>
+                                    <View style={styles.entryRow}>
+                                        <View style={[styles.typeBadge, { backgroundColor: `${badgeColor}15` }]}>
+                                            <Text style={[styles.typeText, { color: badgeColor }]}>
+                                                {isAllClear ? 'STATUS NORMAL' : entry.incidentType.toUpperCase()}
+                                            </Text>
+                                        </View>
+                                        <Text style={[styles.entryDate, { color: dimText }]}>
+                                            {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.entryDesc, { color: textColor }]}>{entry.description}</Text>
+                                    <View style={styles.entryFooter}>
+                                        <View style={styles.footerItem}>
+                                            <IconSymbol name="map.fill" size={12} color={dimText} />
+                                            <Text style={[styles.footerText, { color: dimText }]}>{entry.location || 'Unknown'}</Text>
+                                        </View>
+                                        {!isAllClear && (
+                                            <View style={styles.footerItem}>
+                                                <IconSymbol name="exclamationmark.circle.fill" size={12} color={warningColor} />
+                                                <Text style={[styles.footerText, { color: warningColor }]}>{entry.severity.toUpperCase()}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </ThemedCard>
+                            );
+                        })
+                    )}
+                </View>
             </ScrollView>
 
             {/* Confirm Modal */}
@@ -145,6 +308,13 @@ export default function OBEntryScreen() {
                     </View>
                 </View>
             </Modal>
+
+            <ThemedToast
+                visible={toast.visible}
+                message={toast.message}
+                type={toast.type}
+                onHide={() => setToast(prev => ({ ...prev, visible: false }))}
+            />
         </TacticalBackground>
     );
 }
@@ -192,4 +362,16 @@ const styles = StyleSheet.create({
     confirmSub: { fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
     confirmActions: { flexDirection: 'row', gap: 12, width: '100%' },
     confirmBtn: { flex: 1 },
+    entriesHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center' },
+    entryItem: { marginBottom: 10, padding: 16 },
+    entryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    typeBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+    typeText: { fontSize: 10, fontWeight: '700' },
+    entryDate: { fontSize: 12 },
+    entryDesc: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
+    entryFooter: { flexDirection: 'row', gap: 16 },
+    footerItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    footerText: { fontSize: 11, fontWeight: '500' },
+    sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
 });

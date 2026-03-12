@@ -22,10 +22,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "permissions": [
-        "NFC"
+        "NFC",
+        "android.permission.NFC"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.munyadziwa.gladiatormobile"
     },
     "web": {
       "output": "static",
@@ -50,6 +52,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1b056f24-82eb-4e33-90ab-f393c9bde9aa"
+      }
     }
   }
 }

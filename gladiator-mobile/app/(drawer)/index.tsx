@@ -4,6 +4,7 @@ import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedCard } from '@/components/ThemedCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAuth } from '@/context/AuthContext';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -18,6 +19,8 @@ export default function DashboardScreen() {
   const warningColor = useThemeColor({}, 'warning');
   const accentColor = useThemeColor({}, 'accent');
   const insets = useSafeAreaInsets();
+
+  const { user } = useAuth();
 
   const fadeIn = useRef(new Animated.Value(0)).current;
   const [clock, setClock] = useState('');
@@ -59,7 +62,7 @@ export default function DashboardScreen() {
           {/* Greeting */}
           <View style={styles.greeting}>
             <View>
-              <Text style={[styles.hello, { color: textColor }]}>Hello, {TENANT.operatorName}</Text>
+              <Text style={[styles.hello, { color: textColor }]}>Hello, {user?.name || 'Gladiator'}</Text>
               <Text style={[styles.greetingSub, { color: dimText }]}>What's your next task?</Text>
             </View>
             <Text style={[styles.clock, { color: dimText }]}>{clock}</Text>

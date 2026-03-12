@@ -4,6 +4,7 @@ import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedInput } from '@/components/ThemedInput';
 import { Radius } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useAuth } from '@/context/AuthContext';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14,6 +15,8 @@ export default function LoginScreen() {
     const dimText = useThemeColor({}, 'dimText');
     const cardColor = useThemeColor({}, 'card');
     const cardBorder = useThemeColor({}, 'cardBorder');
+
+    const { signIn } = useAuth();
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -36,9 +39,9 @@ export default function LoginScreen() {
         }, 100);
 
         try {
-            // Using 10.0.2.2 for Android Emulator, localhost for others. 
-            // In a real prod app, this would be an ENV variable.
-            const baseUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+            // Using the host machine's IP address (146.141.180.199) for physical device testing.
+            // On a physical phone, 'localhost' points to the phone itself, which doesn't run the server.
+            const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.199:5000';
 
             const response = await fetch(`${baseUrl}/api/auth/login`, {
                 method: 'POST',
@@ -55,9 +58,11 @@ export default function LoginScreen() {
             // Successfully authenticated
             clearInterval(interval);
             setProgress(100);
-            setLoading(false);
-
+            
             // Note: In a real app, we would store the token (e.g., SecureStore)
+            await signIn(username, data.token, data.user);
+            
+            setLoading(false);
             router.replace('/(drawer)');
         } catch (error: any) {
             clearInterval(interval);
@@ -79,7 +84,7 @@ export default function LoginScreen() {
                         <Text style={[styles.subtitle, { color: dimText }]}>Security Command System</Text>
 
                         <View style={[styles.card, { backgroundColor: cardColor, borderColor: cardBorder }]}>
-                            <ThemedInput label="Username" placeholder="Enter your username" value={username} onChangeText={setUsername} autoCapitalize="none" icon="person.fill" />
+                            <ThemedInput label="Email" placeholder="Enter your email" value={username} onChangeText={setUsername} autoCapitalize="none" icon="person.fill" />
                             <ThemedInput label="Password" placeholder="Enter your password" value={password} onChangeText={setPassword} secureTextEntry icon="lock.fill" />
 
                             {loading && (

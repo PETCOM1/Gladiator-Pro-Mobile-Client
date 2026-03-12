@@ -5,6 +5,7 @@ import { ThemedCard } from '@/components/ThemedCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { router } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -15,14 +16,21 @@ export default function ProfileScreen() {
     const tintColor = useThemeColor({}, 'tint');
     const dimText = useThemeColor({}, 'dimText');
     const cardBorder = useThemeColor({}, 'cardBorder');
+    const errorColor = useThemeColor({}, 'error');
     const successColor = useThemeColor({}, 'success');
     const warningColor = useThemeColor({}, 'warning');
     const accentColor = useThemeColor({}, 'accent');
     const insets = useSafeAreaInsets();
     const { theme: currentTheme, setTheme } = useTheme();
+    const { user, signOut } = useAuth();
 
     const fadeIn = useRef(new Animated.Value(0)).current;
     useEffect(() => { Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start(); }, []);
+
+    const handleLogout = async () => {
+        await signOut();
+        router.replace('/login');
+    };
 
     const STATS = [
         { label: 'Hours', value: '06:42', color: tintColor, icon: 'clock.fill' },
@@ -47,8 +55,8 @@ export default function ProfileScreen() {
                         <View style={[styles.avatar, { backgroundColor: `${tintColor}10`, borderColor: cardBorder }]}>
                             <IconSymbol name="person.fill" size={36} color={tintColor} />
                         </View>
-                        <Text style={[styles.name, { color: textColor }]}>{TENANT.operatorName}</Text>
-                        <Text style={[styles.role, { color: dimText }]}>{TENANT.operatorRole} · {TENANT.accessLevel}</Text>
+                        <Text style={[styles.name, { color: textColor }]}>{user?.name || 'Gladiator'}</Text>
+                        <Text style={[styles.role, { color: dimText }]}>{user?.role || 'Operator'} · Security Agent</Text>
                     </View>
 
                     {/* Stats */}
@@ -69,8 +77,8 @@ export default function ProfileScreen() {
                     <Text style={[styles.sectionLabel, { color: dimText }]}>Personnel Info</Text>
                     <ThemedCard>
                         {[
-                            { label: 'Designation', value: TENANT.operatorRole },
-                            { label: 'Employee ID', value: TENANT.operatorId },
+                            { label: 'Designation', value: user?.role || 'Security' },
+                            { label: 'Official Email', value: user?.email || 'N/A' },
                             { label: 'Deployment', value: TENANT.deployment },
                             { label: 'Shift Window', value: TENANT.shiftWindow },
                         ].map((item, idx, arr) => (
@@ -106,12 +114,12 @@ export default function ProfileScreen() {
                     {/* Logout */}
                     <Text style={[styles.sectionLabel, { color: dimText, marginTop: 28 }]}>Security</Text>
                     <TouchableOpacity
-                        style={[styles.logoutBtn, { borderColor: `${useThemeColor({}, 'error')}40` }]}
-                        onPress={() => router.replace('/login')}
+                        style={[styles.logoutBtn, { borderColor: `${errorColor}40` }]}
+                        onPress={handleLogout}
                         activeOpacity={0.7}
                     >
-                        <IconSymbol name="rectangle.portrait.and.arrow.right.fill" size={20} color={useThemeColor({}, 'error')} />
-                        <Text style={[styles.logoutLabel, { color: useThemeColor({}, 'error') }]}>End Session (Logout)</Text>
+                        <IconSymbol name="rectangle.portrait.and.arrow.right.fill" size={20} color={errorColor} />
+                        <Text style={[styles.logoutLabel, { color: errorColor }]}>End Session (Logout)</Text>
                     </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
