@@ -7,6 +7,7 @@ import { ThemedScanner } from '@/components/ThemedScanner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/context/AuthContext';
+import { parseSaIdDocument, parseSaLicenceDisc } from '@/utils/saIdParser';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,7 +38,12 @@ export default function VisitorsScreen() {
     const [loading, setLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.199:5000';
+    // Entry mode: 'foot' = pedestrian, 'vehicle' = arrived by car
+    const [entryMode, setEntryMode] = useState<'foot' | 'vehicle'>('foot');
+    // scanTarget tells the scanner callback what to do with the result
+    const [scanTarget, setScanTarget] = useState<'id' | 'disc'>('id');
+
+    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.206:5000';
 
     const fadeIn = useRef(new Animated.Value(0)).current;
     const flashAnim = useRef(new Animated.Value(0)).current;
@@ -50,14 +56,75 @@ export default function VisitorsScreen() {
     ]).start();
 
     const parseSAIdBarcode = (data: string) => {
-        if (data.length === 13) { setIdNumber(data); flashGreen(); }
-        else if (data.length > 20 && data.includes('|')) {
-            const parts = data.split('|');
-            if (parts.length >= 3) { setIdNumber(parts[0] || ''); setSurnameInitials((parts[1] + ' ' + (parts[2] || '')).trim()); flashGreen(); }
-        } else { setIdNumber(data.substring(0, 30)); flashGreen(); }
+        const result = parseSaIdDocument(data);
+
+        if (result.type === 'id_number_only') {
+            setIdNumber(result.idNumber ?? '');
+            flashGreen();
+
+        } else if (result.type === 'green_id') {
+            if (result.idNumber) setIdNumber(result.idNumber);
+            if (result.surname || result.initials) {
+                setSurnameInitials(`${result.surname ?? ''} ${result.initials ?? ''}`.trim());
+            }
+            flashGreen();
+
+        } else if (result.type === 'drivers_licence') {
+            if (result.idNumber) {
+                setIdNumber(result.idNumber);
+                flashGreen();
+                Alert.alert(
+                    "Driver's Licence Detected",
+                    `ID number pre-filled (${result.idNumber}). The driver's licence card is encrypted, so please complete the remaining fields (name, institution, etc.) manually.`
+                );
+            } else {
+                Alert.alert(
+                    "Driver's Licence Detected",
+                    "The driver's licence card is encrypted and could not be decoded automatically. Please enter the visitor's details manually."
+                );
+            }
+
+        } else {
+            // Unknown barcode — use raw value as fallback
+            setIdNumber(data.substring(0, 30));
+            flashGreen();
+        }
     };
 
-    const handleScan = (data: string) => { parseSAIdBarcode(data); setShowScanner(false); };
+    const handleScan = (data: string) => {
+        setShowScanner(false);
+        if (scanTarget === 'disc') {
+            handleDiscScan(data);
+        } else {
+            parseSAIdBarcode(data);
+        }
+    };
+
+    const handleDiscScan = (data: string) => {
+        const result = parseSaLicenceDisc(data);
+        if (!result.detected) {
+            Alert.alert('Not a Licence Disc', 'Could not detect a licence disc barcode. Please try again or enter the vehicle registration manually.');
+            return;
+        }
+        if (result.registrationNumber) {
+            setVehicleReg(result.registrationNumber);
+            flashGreen();
+            const details = [
+                `Reg: ${result.registrationNumber}`,
+                result.vin ? `VIN: ${result.vin}` : null,
+                result.expiryDate ? `Expires: ${result.expiryDate}` : null,
+            ].filter(Boolean).join('\n');
+            Alert.alert('Licence Disc Scanned ✓', `Vehicle registration pre-filled.\n\n${details}`);
+        } else {
+            Alert.alert(
+                'Licence Disc Detected',
+                'The disc was detected but the registration number could not be extracted automatically (encrypted). Please enter the vehicle reg manually.',
+            );
+        }
+    };
+
+    const openIdScanner = () => { setScanTarget('id'); setShowScanner(true); };
+    const openDiscScanner = () => { setScanTarget('disc'); setShowScanner(true); };
 
     const fetchVisitors = async () => {
         if (!token) return;
@@ -157,7 +224,17 @@ export default function VisitorsScreen() {
         }
     };
 
-    if (showScanner) return <ThemedScanner visible onScan={handleScan} onClose={() => setShowScanner(false)} title="Scan ID Document" />;
+    // Show scanner full screen when active
+    if (showScanner) {
+        return (
+            <ThemedScanner
+                visible
+                onScan={handleScan}
+                onClose={() => setShowScanner(false)}
+                title={scanTarget === 'disc' ? 'Scan Licence Disc' : 'Scan ID Document'}
+            />
+        );
+    }
 
     return (
         <TacticalBackground style={styles.container}>
@@ -165,16 +242,52 @@ export default function VisitorsScreen() {
 
             <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
                 <Animated.View style={{ opacity: fadeIn }}>
-                    {/* Scan Card */}
-                    <ThemedCard style={styles.scanCard} pressable onPress={() => setShowScanner(true)}>
-                        <View style={[styles.scanIcon, { backgroundColor: `${accentColor}10` }]}>
-                            <IconSymbol name="barcode.viewfinder" size={36} color={accentColor} />
+
+                    {/* ── Entry Mode Toggle ── */}
+                    <View style={[styles.modeToggle, { backgroundColor: `${cardBorder}30`, borderColor: cardBorder }]}>
+                        <TouchableOpacity
+                            style={[styles.modeBtn, entryMode === 'foot' && { backgroundColor: accentColor }]}
+                            onPress={() => setEntryMode('foot')}
+                        >
+                            <Text style={[styles.modeBtnText, { color: entryMode === 'foot' ? '#fff' : dimText }]}>🚶 On Foot</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.modeBtn, entryMode === 'vehicle' && { backgroundColor: accentColor }]}
+                            onPress={() => setEntryMode('vehicle')}
+                        >
+                            <Text style={[styles.modeBtnText, { color: entryMode === 'vehicle' ? '#fff' : dimText }]}>🚗 In Vehicle</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* ── Scan Button(s) ── */}
+                    {entryMode === 'foot' ? (
+                        // On Foot: single scan button for ID / driver's licence
+                        <ThemedCard style={styles.scanCard} pressable onPress={openIdScanner}>
+                            <View style={[styles.scanIcon, { backgroundColor: `${accentColor}10` }]}>
+                                <IconSymbol name="barcode.viewfinder" size={36} color={accentColor} />
+                            </View>
+                            <View>
+                                <Text style={[styles.scanTitle, { color: textColor }]}>Scan ID Document</Text>
+                                <Text style={[styles.scanSub, { color: dimText }]}>SA ID book or driver's licence</Text>
+                            </View>
+                        </ThemedCard>
+                    ) : (
+                        // In Vehicle: two scan buttons
+                        <View style={styles.dualScanRow}>
+                            <ThemedCard style={[styles.scanCardHalf, { flex: 1, marginRight: 8 }]} pressable onPress={openIdScanner}>
+                                <View style={[styles.scanIcon, { backgroundColor: `${accentColor}10`, width: 44, height: 44, borderRadius: 22 }]}>
+                                    <IconSymbol name="person.crop.rectangle" size={24} color={accentColor} />
+                                </View>
+                                <Text style={[styles.scanTitle, { color: textColor, fontSize: 13, textAlign: 'center', marginTop: 6 }]}>Scan ID / Licence</Text>
+                            </ThemedCard>
+                            <ThemedCard style={[styles.scanCardHalf, { flex: 1, marginLeft: 8 }]} pressable onPress={openDiscScanner}>
+                                <View style={[styles.scanIcon, { backgroundColor: `${tintColor}10`, width: 44, height: 44, borderRadius: 22 }]}>
+                                    <IconSymbol name="car.fill" size={24} color={tintColor} />
+                                </View>
+                                <Text style={[styles.scanTitle, { color: textColor, fontSize: 13, textAlign: 'center', marginTop: 6 }]}>Scan Licence Disc</Text>
+                            </ThemedCard>
                         </View>
-                        <View>
-                            <Text style={[styles.scanTitle, { color: textColor }]}>Scan ID Document</Text>
-                            <Text style={[styles.scanSub, { color: dimText }]}>Tap to activate camera</Text>
-                        </View>
-                    </ThemedCard>
+                    )}
 
                     <View style={styles.divider}>
                         <View style={[styles.dividerLine, { backgroundColor: cardBorder }]} />
@@ -244,7 +357,32 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     flash: { ...StyleSheet.absoluteFillObject, zIndex: 100 },
     content: { padding: 20 },
+    modeToggle: { 
+        flexDirection: 'row', 
+        padding: 4, 
+        borderRadius: Radius.lg, 
+        borderWidth: 1, 
+        marginBottom: 20 
+    },
+    modeBtn: { 
+        flex: 1, 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        paddingVertical: 10, 
+        borderRadius: Radius.md 
+    },
+    modeBtnText: { fontSize: 14, fontWeight: '600' },
+    dualScanRow: { 
+        flexDirection: 'row', 
+        marginBottom: 20 
+    },
     scanCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
+    scanCardHalf: { 
+        alignItems: 'center', 
+        paddingVertical: 16, 
+        paddingHorizontal: 8 
+    },
     scanIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
     scanTitle: { fontSize: 17, fontWeight: '700' },
     scanSub: { fontSize: 13, marginTop: 2 },

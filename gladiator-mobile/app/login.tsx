@@ -39,9 +39,9 @@ export default function LoginScreen() {
         }, 100);
 
         try {
-            // Using the host machine's IP address (146.141.180.199) for physical device testing.
+            // Using the host machine's IP address (146.141.180.206) for physical device testing.
             // On a physical phone, 'localhost' points to the phone itself, which doesn't run the server.
-            const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.199:5000';
+            const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.206:5000';
 
             const response = await fetch(`${baseUrl}/api/auth/login`, {
                 method: 'POST',

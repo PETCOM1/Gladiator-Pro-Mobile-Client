@@ -59,7 +59,7 @@ export default function OBEntryScreen() {
         type: 'success'
     });
 
-    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.199:5000';
+    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.206:5000';
 
     const fetchEntries = async () => {
         if (!token) return;
