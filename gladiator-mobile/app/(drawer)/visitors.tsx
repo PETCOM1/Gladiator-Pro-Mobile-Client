@@ -11,6 +11,7 @@ import { parseSaIdDocument, parseSaLicenceDisc } from '@/utils/saIdParser';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { baseUrl } from '@/constants/api';
 
 export default function VisitorsScreen() {
     const textColor = useThemeColor({}, 'text');
@@ -42,8 +43,6 @@ export default function VisitorsScreen() {
     const [entryMode, setEntryMode] = useState<'foot' | 'vehicle'>('foot');
     // scanTarget tells the scanner callback what to do with the result
     const [scanTarget, setScanTarget] = useState<'id' | 'disc'>('id');
-
-    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.206:5000';
 
     const fadeIn = useRef(new Animated.Value(0)).current;
     const flashAnim = useRef(new Animated.Value(0)).current;

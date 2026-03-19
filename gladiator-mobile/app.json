@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.munyadziwa.gladiatormobile",
       "infoPlist": {
         "NFCReaderUsageDescription": "This app uses NFC to verify checkpoints during security patrols.",
         "NSCameraUsageDescription": "This app uses the camera to scan visitor identification documents."

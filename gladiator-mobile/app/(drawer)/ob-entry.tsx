@@ -13,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useEffect } from 'react';
 import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { baseUrl } from '@/constants/api';
 
 const INCIDENT_TYPES: PickerOption[] = [
     { label: 'Suspicious Activity', value: 'suspicious', icon: 'eye.fill', color: '#C2A24A' },
@@ -58,8 +59,6 @@ export default function OBEntryScreen() {
         message: '',
         type: 'success'
     });
-
-    const baseUrl = Platform.OS === 'web' ? 'http://localhost:5000' : 'http://146.141.180.206:5000';
 
     const fetchEntries = async () => {
         if (!token) return;
