@@ -231,6 +231,7 @@ export default function VisitorsScreen() {
                 visible
                 onScan={handleScan}
                 onClose={() => setShowScanner(false)}
+                scannerType="id" // Both ID and Disc use PDF417
                 title={scanTarget === 'disc' ? 'Scan Licence Disc' : 'Scan ID Document'}
             />
         );

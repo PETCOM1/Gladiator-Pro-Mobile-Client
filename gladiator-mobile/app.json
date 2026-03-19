@@ -11,7 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NFCReaderUsageDescription": "This app uses NFC to verify checkpoints during security patrols."
+        "NFCReaderUsageDescription": "This app uses NFC to verify checkpoints during security patrols.",
+        "NSCameraUsageDescription": "This app uses the camera to scan visitor identification documents."
       }
     },
     "android": {
@@ -23,7 +24,9 @@
       },
       "permissions": [
         "NFC",
-        "android.permission.NFC"
+        "android.permission.NFC",
+        "CAMERA",
+        "android.permission.CAMERA"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -47,7 +50,8 @@
           }
         }
       ],
-      "react-native-nfc-manager"
+      "react-native-nfc-manager",
+      "react-native-vision-camera"
     ],
     "experiments": {
       "typedRoutes": true,
