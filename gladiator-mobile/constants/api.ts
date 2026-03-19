@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
  * 3. Look for 'IPv4 Address' under your Wi-Fi or Ethernet adapter.
  */
 // Using a Public Tunnel (Localtunnel) to bypass university Wi-Fi restrictions
-export const TUNNEL_URL = 'https://sad-years-rhyme.loca.lt';
+export const TUNNEL_URL = 'https://gladiator-pro-dev.loca.lt';
 
 export const getBaseUrl = () => {
     if (Platform.OS === 'web') {
@@ -21,3 +21,7 @@ export const getBaseUrl = () => {
 };
 
 export const baseUrl = getBaseUrl();
+
+export const TUNNEL_BYPASS_HEADER = {
+    'Bypass-Tunnel-Reminder': 'true'
+};

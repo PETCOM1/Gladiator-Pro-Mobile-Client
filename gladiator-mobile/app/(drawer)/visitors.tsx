@@ -130,7 +130,10 @@ export default function VisitorsScreen() {
         setLoading(true);
         try {
             const response = await fetch(`${baseUrl}/api/visitors`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
+                }
             });
             const data = await response.json();
             if (response.ok) {
@@ -148,7 +151,10 @@ export default function VisitorsScreen() {
         if (!token) return;
         try {
             const response = await fetch(`${baseUrl}/api/sites`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
+                }
             });
             const data = await response.json();
             if (response.ok) {
@@ -176,7 +182,8 @@ export default function VisitorsScreen() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
                 },
                 body: JSON.stringify({
                     surnameInitials,
@@ -219,7 +226,10 @@ export default function VisitorsScreen() {
                         try {
                             const response = await fetch(`${baseUrl}/api/visitors/check-out/${id}`, {
                                 method: 'PATCH',
-                                headers: { 'Authorization': `Bearer ${token}` }
+                                headers: { 
+                                    'Authorization': `Bearer ${token}`,
+                                    'Bypass-Tunnel-Reminder': 'true'
+                                }
                             });
 
                             if (response.ok) {

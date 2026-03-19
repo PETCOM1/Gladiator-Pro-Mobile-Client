@@ -65,7 +65,10 @@ export default function OBEntryScreen() {
         setLoading(true);
         try {
             const response = await fetch(`${baseUrl}/api/ob-entries`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
+                }
             });
             const data = await response.json();
             if (response.ok) setEntries(data);
@@ -91,7 +94,8 @@ export default function OBEntryScreen() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
                 },
                 body: JSON.stringify({
                     incidentType,
@@ -127,7 +131,8 @@ export default function OBEntryScreen() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Bypass-Tunnel-Reminder': 'true'
                 },
                 body: JSON.stringify({
                     incidentType: 'all_clear',
