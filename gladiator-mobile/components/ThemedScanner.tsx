@@ -42,7 +42,14 @@ export function ThemedScanner({
     
     const [scanned, setScanned] = useState(false);
     const [torch, setTorch] = useState(false);
-    const [zoom, setZoom] = useState(scannerType === 'id' ? 0.08 : 0);
+    const [zoom, setZoom] = useState<number | undefined>(undefined);
+
+    // Initialize zoom when device is available
+    useEffect(() => {
+        if (device && zoom === undefined) {
+            setZoom(scannerType === 'id' ? device.minZoom + 0.5 : device.minZoom);
+        }
+    }, [device, scannerType]);
 
     // Request permissions on mount if visible
     useEffect(() => {
@@ -139,14 +146,14 @@ export function ThemedScanner({
                         <View style={styles.zoomControls}>
                             <TouchableOpacity 
                                 style={styles.zoomButton} 
-                                onPress={() => setZoom(Math.max(device.minZoom, zoom - 0.02))}
+                                onPress={() => setZoom(prev => Math.max(device.minZoom, (prev || device.minZoom) - 0.2))}
                             >
                                 <Text style={styles.zoomText}>-</Text>
                             </TouchableOpacity>
                             <View style={styles.zoomDivider} />
                             <TouchableOpacity 
                                 style={styles.zoomButton} 
-                                onPress={() => setZoom(Math.min(device.maxZoom, zoom + 0.02))}
+                                onPress={() => setZoom(prev => Math.min(device.maxZoom, (prev || device.minZoom) + 0.2))}
                             >
                                 <Text style={styles.zoomText}>+</Text>
                             </TouchableOpacity>
@@ -169,13 +176,13 @@ export function ThemedScanner({
                         <View style={styles.unfocusedContainer}></View>
                     </View>
 
-                    <View style={styles.hintContainer}>
-                        <Text style={styles.hintText}>ALIGN BARCODE WITHIN RECTANGLE</Text>
-                        <Text style={styles.subHintText}>Use + / - to adjust zoom if blurry</Text>
-                        <View style={[styles.macroBadge, { backgroundColor: zoom > 0.05 ? '#3B82F6' : 'rgba(255,255,255,0.2)' }]}>
-                            <Text style={styles.macroText}>Digital Zoom: {Math.round(zoom * 100)}%</Text>
+                        <View style={styles.hintContainer}>
+                            <Text style={styles.hintText}>ALIGN BARCODE WITHIN RECTANGLE</Text>
+                            <Text style={styles.subHintText}>Use + / - to adjust zoom if blurry</Text>
+                            <View style={[styles.macroBadge, { backgroundColor: (zoom || 1) > device.minZoom ? '#3B82F6' : 'rgba(255,255,255,0.2)' }]}>
+                                <Text style={styles.macroText}>Zoom: {((zoom || device.minZoom) / device.minZoom).toFixed(1)}x</Text>
+                            </View>
                         </View>
-                    </View>
                 </View>
             </SafeAreaView>
         </Modal>

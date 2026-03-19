@@ -208,20 +208,33 @@ export default function VisitorsScreen() {
     };
 
     const handleCheckOut = async (id: string) => {
-        try {
-            const response = await fetch(`${baseUrl}/api/visitors/check-out/${id}`, {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+        Alert.alert(
+            'Check Out Visitor',
+            'Are you sure you want to sign this visitor out?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Check Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const response = await fetch(`${baseUrl}/api/visitors/check-out/${id}`, {
+                                method: 'PATCH',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
 
-            if (response.ok) {
-                fetchVisitors();
-            } else {
-                Alert.alert('Error', 'Failed to check out visitor.');
-            }
-        } catch (error) {
-            Alert.alert('Network Error', 'Could not connect to server.');
-        }
+                            if (response.ok) {
+                                fetchVisitors();
+                            } else {
+                                Alert.alert('Error', 'Failed to check out visitor.');
+                            }
+                        } catch (error) {
+                            Alert.alert('Network Error', 'Could not connect to server.');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     // Show scanner full screen when active
