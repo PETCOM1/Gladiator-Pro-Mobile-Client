@@ -65,7 +65,7 @@ export default function OBEntryScreen() {
         setLoading(true);
         try {
             const response = await fetch(`${baseUrl}/api/ob-entries`, {
-                headers: { 
+                headers: {
                     'Authorization': `Bearer ${token}`,
                     'Bypass-Tunnel-Reminder': 'true'
                 }
@@ -102,7 +102,8 @@ export default function OBEntryScreen() {
                     severity,
                     location,
                     description,
-                    image
+                    image,
+                    siteId: user?.siteId
                 }),
             });
 
@@ -139,7 +140,8 @@ export default function OBEntryScreen() {
                     severity: 'low',
                     location: 'Post/Shift',
                     description: 'Status Normal - No incidents to report.',
-                    image: null
+                    image: null,
+                    siteId: user?.siteId
                 }),
             });
 
@@ -263,7 +265,7 @@ export default function OBEntryScreen() {
                         entries.map((entry) => {
                             const isAllClear = entry.incidentType === 'all_clear';
                             const badgeColor = isAllClear ? successColor : tintColor;
-                            
+
                             return (
                                 <ThemedCard key={entry.id} style={styles.entryItem}>
                                     <View style={styles.entryRow}>

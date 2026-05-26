@@ -13,15 +13,19 @@ export type ParsedIdDocument = {
     type: 'green_id' | 'drivers_licence' | 'id_number_only' | 'unknown';
     /** SA ID number (13 digits) if extractable */
     idNumber?: string;
-    /** Surname (green ID book only) */
+    /** Surname */
     surname?: string;
-    /** Name / initials (green ID book only) */
+    /** Name / initials */
     initials?: string;
     /**
      * True if a driver's licence was detected but not all fields could be
      * extracted — caller should prompt user to fill in manually.
      */
     partialDriversLicence?: boolean;
+    /**
+     * True if the name was extracted via fuzzy ASCII matching (may be imperfect).
+     */
+    fuzzyName?: boolean;
 };
 
 /**
@@ -52,6 +56,156 @@ function extractIdNumberFromRaw(raw: string): string | undefined {
 }
 
 /**
+ * Fuzzy surname + given-name extractor for encrypted driver's licence / Smart ID.
+ *
+ * SA driver's licence PDF417 barcodes are RSA-encrypted by the DoT, but the
+ * raw byte stream often contains the holder's SURNAME and GIVEN NAMES in
+ * plaintext ASCII within the TLV structure.
+ *
+ * SA field order (SALIC spec):
+ *   ID-number → birth-date → gender → nationality → country → SURNAME → GIVEN-NAMES
+ *
+ * Strategy:
+ *   1. Extract all uppercase-only word tokens with their byte positions.
+ *   2. Filter out known metadata tokens (gender / nationality / country values).
+ *   3. Find the best ADJACENT PAIR of tokens: both plausible names, both close
+ *      together in bytes (≤ 80-byte gap = adjacent TLV fields).
+ *   4. In SA documents the first field of the pair is always SURNAME.
+ *   5. Fall back to best single token if no good pair is found.
+ */
+function scoreName(word: string): number {
+    if (word.length < 2 || word.length > 25) return 0;
+    if (/^(.)\1+$/.test(word)) return 0;      // repeated-char: "AA", "BB" …
+    let score = word.length;
+    if (word.length >= 3 && word.length <= 15) score += 4;  // sweet-spot for names
+    if (word.includes('-')) score += 3;        // hyphenated SA surnames common
+    if (word.length <= 2) score -= 6;          // penalise short abbrevs
+    return Math.max(0, score);
+}
+
+function extractNameFromBinary(raw: string): { surname: string; givenNames: string } | undefined {
+    // Expanded blacklist — covers all SA TLV metadata values that appear
+    // between the ID number and the name fields:
+    // gender, nationality, citizenship status, country codes, prefix titles, etc.
+    const BLACKLIST = new Set([
+        'RSA', 'SA', 'ZA', 'ZAF', 'DL', 'ID', 'NR', 'PDF', 'TMP', 'VIN',
+        'NCA', 'DOT', 'LIC', 'DRV', 'PDP', 'REG',
+        'AFRICA', 'SOUTH', 'REPUBLIC',
+        'MALE', 'FEMALE', 'GENDER',
+        'CITIZEN', 'PERMANENT', 'RESIDENT', 'TEMPORARY', 'ASYLUM',
+        'MS', 'MR', 'DR', 'MRS', 'PROF', 'REV', 'ADV',
+        'YES', 'NO', 'NULL', 'NONE',
+    ]);
+
+    // ── Step 1: collect printable-ASCII runs with their start byte positions ──
+    interface Run { text: string; start: number }
+    const runs: Run[] = [];
+    let cur = '';
+    let curStart = 0;
+    for (let i = 0; i < raw.length; i++) {
+        const code = raw.charCodeAt(i);
+        if (code >= 32 && code <= 126) {
+            if (cur.length === 0) curStart = i;
+            cur += raw[i];
+        } else {
+            if (cur.length >= 2) runs.push({ text: cur, start: curStart });
+            cur = '';
+        }
+    }
+    if (cur.length >= 2) runs.push({ text: cur, start: curStart });
+
+    // ── Step 2: extract uppercase-alpha tokens with absolute byte positions ──
+    const NAME_WORD = /\b([A-Z]{2,25}(?:-[A-Z]{2,20})*)\b/g;
+    interface Candidate { word: string; pos: number; end: number }
+    const candidates: Candidate[] = [];
+
+    for (const run of runs) {
+        let m: RegExpExecArray | null;
+        NAME_WORD.lastIndex = 0;
+        while ((m = NAME_WORD.exec(run.text)) !== null) {
+            const word = m[1];
+            if (BLACKLIST.has(word)) continue;
+            if (/^(.)\1+$/.test(word)) continue;
+            const absPos = run.start + m.index;
+            candidates.push({ word, pos: absPos, end: absPos + word.length });
+        }
+    }
+
+    if (candidates.length === 0) return undefined;
+
+    // ── Step 3: sort by byte position, anchor to after the ID number ──
+    candidates.sort((a, b) => a.pos - b.pos);
+
+    const idMatch = raw.match(/\b(\d{13})\b/);
+    const idPos   = idMatch ? raw.indexOf(idMatch[1]) : 0;
+
+    // Name fields in SA TLV appear within ~400 bytes after the ID number
+    const afterId = candidates.filter(c => c.pos > idPos + 13 && c.pos < idPos + 450);
+    const pool    = afterId.length >= 1 ? afterId : candidates.filter(c => c.pos > idPos);
+    const fallback = pool.length >= 1 ? pool : candidates;
+
+    // Deduplicate consecutive identical tokens
+    const unique: Candidate[] = [];
+    for (const c of fallback) {
+        if (unique.length === 0 || c.word !== unique[unique.length - 1].word) {
+            unique.push(c);
+        }
+    }
+
+    // ── Step 4: find the best adjacent PAIR (surname + given names) ──
+    // Score every [i, j] pair where j comes right after i in position order
+    // and the byte gap between end-of-i and start-of-j is ≤ 80 bytes.
+    // (Adjacent TLV fields in the SA binary are typically 0–40 bytes apart.)
+    const MAX_PAIR_GAP = 80;
+    let bestSurname    = '';
+    let bestGivenNames = '';
+    let bestPairScore  = -1;
+
+    for (let i = 0; i < unique.length - 1; i++) {
+        const a = unique[i];
+        for (let j = i + 1; j < unique.length; j++) {
+            const b = unique[j];
+            const gap = b.pos - a.end;
+            if (gap > MAX_PAIR_GAP) break; // tokens too far apart
+
+            const aScore = scoreName(a.word);
+            const bScore = scoreName(b.word);
+            if (aScore <= 0 || bScore <= 0) continue;
+
+            // Proximity bonus: closer tokens score higher (adjacent fields)
+            const proximityBonus = Math.max(0, (MAX_PAIR_GAP - gap) / 10);
+            const pairScore = aScore + bScore + proximityBonus;
+
+            if (pairScore > bestPairScore) {
+                bestPairScore  = pairScore;
+                bestSurname    = a.word;   // first in byte order = SURNAME
+                bestGivenNames = b.word;   // second in byte order = GIVEN NAMES
+            }
+        }
+    }
+
+    // ── Step 5: fallback — best single token as surname if no good pair found ──
+    if (!bestSurname) {
+        const best = unique.reduce<Candidate | null>(
+            (prev, curr) => (scoreName(curr.word) > scoreName(prev?.word ?? '')) ? curr : prev,
+            null
+        );
+        if (best && scoreName(best.word) > 0) bestSurname = best.word;
+    }
+
+    console.log(
+        '[PARSER FuzzyName] Pool:',
+        unique.slice(0, 8).map(c => `${c.word}@${c.pos}`),
+        '→ surname:', bestSurname,
+        '| givenNames:', bestGivenNames,
+    );
+
+    if (!bestSurname || bestSurname.length < 2) return undefined;
+
+    return { surname: bestSurname, givenNames: bestGivenNames };
+}
+
+/**
  * Validates that a string is a plausible SA ID number:
  *  - exactly 13 digits
  *  - first 6 digits form a valid YYMMDD date
@@ -71,51 +225,76 @@ function isValidSaIdNumber(id: string): boolean {
 export function parseSaIdDocument(raw: string): ParsedIdDocument {
     const trimmed = raw.trim();
 
+    console.log('[PARSER] Length:', trimmed.length, '| Has pipe:', trimmed.includes('|'));
+
     // ── 1. Bare 13-digit SA ID number ─────────────────────────────────────
     if (/^\d{13}$/.test(trimmed) && isValidSaIdNumber(trimmed)) {
         return { type: 'id_number_only', idNumber: trimmed };
     }
 
-    // ── 2. SA Green ID book barcode (pipe-separated) ───────────────────────
-    // Format:  <idNumber>|<surname>|<initials>|...  or separated by char 225/224
-    if (trimmed.includes('|') && trimmed.length > 20) {
-        const parts = trimmed.split('|');
-        const idNumber = parts[0]?.replace(/\D/g, '') || '';
-        const surname = parts[1]?.trim() || '';
-        const initials = parts[2]?.trim() || '';
-        return {
-            type: 'green_id',
-            idNumber: isValidSaIdNumber(idNumber) ? idNumber : undefined,
-            surname: surname || undefined,
-            initials: initials || undefined,
-        };
-    }
-
-    // Some green IDs use char-225 (á) as a field separator instead of pipe
-    if (trimmed.length > 20 && /[áà]/.test(trimmed)) {
-        const parts = trimmed.split(/[áà]/);
-        // Fields: vehicleCode, surname, initials, idCountry, licCountry, restriction, licNumber, idNumber
-        const candidateId = parts.find(p => /^\d{13}$/.test(p.trim()));
-        const surname = parts[1]?.trim();
-        const initials = parts[2]?.trim();
-        if (candidateId) {
+    // ── 2. SA Driver's Licence / Smart ID (binary PDF417) — CHECK FIRST ─────
+    // These are RSA-encrypted by DoT. Must eliminate binary blobs before
+    // any separator check, because binary data contains \n and ^ bytes that
+    // would fool the Green ID parser.
+    if (looksLikeDriversLicence(trimmed)) {
+        const idNumber = extractIdNumberFromRaw(trimmed);
+        if (idNumber && isValidSaIdNumber(idNumber)) {
+            // Attempt fuzzy ASCII name extraction from the encrypted payload
+            const fuzzy = extractNameFromBinary(trimmed);
+            console.log('[PARSER] Driver\'s Licence / Smart ID — encrypted', fuzzy ? '| fuzzy name found' : '| name not extractable');
             return {
-                type: 'green_id',
-                idNumber: candidateId,
-                surname: surname || undefined,
-                initials: initials || undefined,
+                type: 'drivers_licence',
+                idNumber,
+                surname: fuzzy?.surname,
+                initials: fuzzy?.givenNames,
+                partialDriversLicence: !fuzzy?.surname,
+                fuzzyName: !!fuzzy?.surname,
             };
         }
     }
 
-    // ── 3. SA Driver's Licence (binary PDF417) ─────────────────────────────
-    if (looksLikeDriversLicence(trimmed)) {
-        const idNumber = extractIdNumberFromRaw(trimmed);
-        return {
-            type: 'drivers_licence',
-            idNumber: idNumber && isValidSaIdNumber(idNumber) ? idNumber : undefined,
-            partialDriversLicence: true,
-        };
+    // ── 3. SA Green ID book barcode ─────────────────────────────────────────
+    // At this point we know the data is NOT an encrypted binary blob.
+    // The Green ID book PDF417 uses pipe (|) or caret (^) as field separators.
+    // Format: idNumber|surname|initials|gender|nationality|...
+    if (trimmed.length > 20) {
+        // Try all known separators
+        for (const sep of ['|', '^', '\r\n', '\n', '\x1c']) {
+            if (trimmed.includes(sep)) {
+                const parts = trimmed.split(sep).map(p => p.trim()).filter(Boolean);
+                if (parts.length >= 2) {
+                    // Find the part that contains a valid 13-digit ID
+                    const idPart = parts.find(p => /^\d{13}$/.test(p.replace(/\D/g, '')) && isValidSaIdNumber(p.replace(/\D/g, '')));
+                    const idNumber = idPart ? idPart.replace(/\D/g, '') : parts[0]?.replace(/\D/g, '');
+                    const idIdx = idPart ? parts.indexOf(idPart) : 0;
+                    const surname = parts[idIdx + 1] || '';
+                    const initials = parts[idIdx + 2] || '';
+
+                    console.log('[PARSER] Green ID — sep:', JSON.stringify(sep), '| surname:', surname, '| initials:', initials);
+
+                    return {
+                        type: 'green_id',
+                        idNumber: idNumber && isValidSaIdNumber(idNumber) ? idNumber : undefined,
+                        surname: surname || undefined,
+                        initials: initials || undefined,
+                    };
+                }
+            }
+        }
+
+        // Some green IDs use char-225 (á/à) as a field separator
+        if (/[áà]/.test(trimmed)) {
+            const parts = trimmed.split(/[áà]/).map(p => p.trim()).filter(Boolean);
+            const candidateId = parts.find(p => /^\d{13}$/.test(p));
+            if (candidateId) {
+                return {
+                    type: 'green_id',
+                    idNumber: candidateId,
+                    surname: parts[1] || undefined,
+                    initials: parts[2] || undefined,
+                };
+            }
+        }
     }
 
     // ── 4. Unknown / other barcode ─────────────────────────────────────────

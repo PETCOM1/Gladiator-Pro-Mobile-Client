@@ -25,16 +25,14 @@ export default function DashboardScreen() {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const [clock, setClock] = useState('');
 
-  const [dPatrols, setDP] = useState(0);
-  const [dCheckpoints, setDC] = useState(0);
   const [dOB, setDO] = useState(0);
 
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
 
-    const targets = { p: 12, c: 48, o: 3 };
+    const targets = { o: 3 };
     let f = 0;
-    const counter = setInterval(() => { f++; const t = Math.min(f / 25, 1); setDP(Math.round(t * targets.p)); setDC(Math.round(t * targets.c)); setDO(Math.round(t * targets.o)); if (f >= 25) clearInterval(counter); }, 40);
+    const counter = setInterval(() => { f++; const t = Math.min(f / 25, 1); setDO(Math.round(t * targets.o)); if (f >= 25) clearInterval(counter); }, 40);
 
     const clockInterval = setInterval(() => setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
     setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -43,13 +41,11 @@ export default function DashboardScreen() {
   }, []);
 
   const STATS = [
-    { label: 'Patrols', value: String(dPatrols), color: tintColor, icon: 'map.fill' },
-    { label: 'Checkpoints', value: String(dCheckpoints), color: accentColor, icon: 'mappin.circle.fill' },
     { label: 'OB Entries', value: String(dOB), color: successColor, icon: 'doc.text.fill' },
   ];
 
   const ACTIONS = [
-    { title: 'Patrol', icon: 'map.fill', route: '/(drawer)/patrol', color: tintColor },
+    { title: 'Patrol', icon: 'map.fill', route: '/(drawer)/patrol', color: tintColor, disabled: true },
     { title: 'OB Entry', icon: 'pencil.and.outline', route: '/(drawer)/ob-entry', color: warningColor },
     { title: 'Visitors', icon: 'person.2.fill', route: '/(drawer)/visitors', color: accentColor },
     { title: 'Profile', icon: 'person.crop.circle.fill', route: '/(drawer)/profile', color: successColor },
@@ -60,12 +56,14 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <Animated.View style={{ opacity: fadeIn }}>
           {/* Greeting */}
-          <View style={styles.greeting}>
-            <View>
+          <View style={[styles.greeting, { position: 'relative', alignItems: 'flex-start' }]}>
+            <View style={{ flex: 1, paddingRight: 65 }}>
               <Text style={[styles.hello, { color: textColor }]}>Hello, {user?.name || 'Gladiator'}</Text>
-              <Text style={[styles.greetingSub, { color: dimText }]}>What's your next task?</Text>
+              <Text style={[styles.greetingSub, { color: dimText }]}>
+                {user?.siteId ? `Assigned Site Command` : "Strategic Oversight"}
+              </Text>
             </View>
-            <Text style={[styles.clock, { color: dimText }]}>{clock}</Text>
+            <Text style={[styles.clock, { color: dimText, position: 'absolute', right: 0, top: 8 }]}>{clock}</Text>
           </View>
 
           {/* Stats */}
@@ -88,15 +86,22 @@ export default function DashboardScreen() {
             {ACTIONS.map(action => (
               <TouchableOpacity
                 key={action.title}
-                activeOpacity={0.7}
-                onPress={() => router.push(action.route as any)}
-                style={styles.actionWrapper}
+                activeOpacity={action.disabled ? 1 : 0.7}
+                onPress={() => !action.disabled && router.push(action.route as any)}
+                style={[styles.actionWrapper, action.disabled && { opacity: 0.5 }]}
               >
                 <ThemedCard style={styles.actionCard} pressable={false}>
                   <View style={[styles.actionIcon, { backgroundColor: `${action.color}10` }]}>
                     <IconSymbol name={action.icon as any} size={24} color={action.color} />
                   </View>
-                  <Text style={[styles.actionTitle, { color: textColor }]}>{action.title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={[styles.actionTitle, { color: textColor }]}>{action.title}</Text>
+                    {action.disabled && (
+                      <View style={{ backgroundColor: `${textColor}15`, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '700', color: dimText }}>SOON</Text>
+                      </View>
+                    )}
+                  </View>
                 </ThemedCard>
               </TouchableOpacity>
             ))}

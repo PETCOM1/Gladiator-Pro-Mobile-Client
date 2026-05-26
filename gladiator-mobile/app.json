@@ -13,7 +13,11 @@
       "bundleIdentifier": "com.munyadziwa.gladiatormobile",
       "infoPlist": {
         "NFCReaderUsageDescription": "This app uses NFC to verify checkpoints during security patrols.",
-        "NSCameraUsageDescription": "This app uses the camera to scan visitor identification documents."
+        "NSCameraUsageDescription": "This app uses the camera to scan visitor identification documents.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "This app needs access to the local network to connect to the development server."
       }
     },
     "android": {

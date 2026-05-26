@@ -7,14 +7,12 @@ import {
     Text,
     TouchableOpacity,
     View,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { 
-    Camera, 
-    useCameraDevice, 
-    useCameraPermission, 
-    useCodeScanner 
-} from 'react-native-vision-camera';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+
+import * as Haptics from 'expo-haptics';
 
 export type ThemedScannerProps = {
     visible: boolean;
@@ -32,8 +30,7 @@ export function ThemedScanner({
     title = 'Scan QR Code',
     scannerType = 'id'
 }: ThemedScannerProps) {
-    const { hasPermission, requestPermission } = useCameraPermission();
-    const device = useCameraDevice('back');
+    const [status, requestPermission] = useCameraPermissions();
     
     const textColor = useThemeColor({}, 'text');
     const backgroundColor = useThemeColor({}, 'background');
@@ -42,40 +39,38 @@ export function ThemedScanner({
     
     const [scanned, setScanned] = useState(false);
     const [torch, setTorch] = useState(false);
-    const [zoom, setZoom] = useState<number | undefined>(undefined);
-
-    // Initialize zoom when device is available
-    useEffect(() => {
-        if (device && zoom === undefined) {
-            setZoom(scannerType === 'id' ? device.minZoom + 0.5 : device.minZoom);
-        }
-    }, [device, scannerType]);
+    const [zoom, setZoom] = useState(scannerType === 'id' ? 0.2 : 0);
 
     // Request permissions on mount if visible
     useEffect(() => {
-        if (visible && !hasPermission) {
+        if (visible && status && !status.granted && status.canAskAgain) {
             requestPermission();
         }
-    }, [visible, hasPermission]);
+    }, [visible, status]);
 
-    const handleCodeScanned = useCallback((codes: any[]) => {
-        if (codes.length > 0 && !scanned) {
-            const data = codes[0].value;
-            if (data) {
-                setScanned(true);
-                onScan(data);
-                // Reset scanned state after 2s to allow subsequent scans if needed
-                setTimeout(() => setScanned(false), 2000);
-            }
+    const handleCodeScanned = useCallback((result: BarcodeScanningResult) => {
+        if (!scanned) {
+            setScanned(true);
+            console.log(`[SCAN] Type: ${result.type}, Data length: ${result.data.length}`);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onScan(result.data);
+            // Reset after 2s to allow re-scan if needed
+            setTimeout(() => setScanned(false), 2000);
         }
     }, [scanned, onScan]);
 
-    const codeScanner = useCodeScanner({
-        codeTypes: scannerType === 'id' ? ['pdf-417'] : ['qr', 'code-128'],
-        onCodeScanned: handleCodeScanned
-    });
+    if (!status) {
+        // Camera permissions are still loading
+        return (
+            <Modal visible={visible} transparent>
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={tintColor} />
+                </View>
+            </Modal>
+        );
+    }
 
-    if (!hasPermission) {
+    if (!status.granted) {
         return (
             <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
                 <SafeAreaView style={[styles.container, { backgroundColor }]}>
@@ -89,19 +84,6 @@ export function ThemedScanner({
                         <TouchableOpacity style={{ marginTop: 20 }} onPress={onClose}>
                             <Text style={{ color: tintColor }}>Cancel</Text>
                         </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
-            </Modal>
-        );
-    }
-
-    if (!device) {
-        return (
-            <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-                <SafeAreaView style={[styles.container, { backgroundColor }]}>
-                    <View style={styles.permissionContainer}>
-                        <Text style={[styles.permissionText, { color: textColor }]}>No camera device found.</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={{ color: tintColor }}>Close</Text></TouchableOpacity>
                     </View>
                 </SafeAreaView>
             </Modal>
@@ -125,13 +107,21 @@ export function ThemedScanner({
                 </View>
 
                 <View style={styles.scannerWrapper}>
-                    <Camera
+                    <CameraView
                         style={StyleSheet.absoluteFill}
-                        device={device}
-                        isActive={visible}
-                        codeScanner={codeScanner}
-                        torch={torch ? 'on' : 'off'}
+                        facing="back"
+                        barcodeScannerSettings={{
+                            barcodeTypes: [
+                                'pdf417', 'qr', 'code128', 'code39', 'code93', 
+                                'ean13', 'ean8', 'upc_e', 'datamatrix', 'aztec'
+                            ],
+                        }}
+                        onBarcodeScanned={scanned ? undefined : handleCodeScanned}
+                        onCameraReady={() => console.log('[CAMERA] Ready')}
+                        onMountError={(e) => console.error('[CAMERA] Mount Error:', e)}
+                        enableTorch={torch}
                         zoom={zoom}
+                        autofocus="on"
                     />
                     
                     {/* Flashlight & Zoom Controls */}
@@ -146,14 +136,14 @@ export function ThemedScanner({
                         <View style={styles.zoomControls}>
                             <TouchableOpacity 
                                 style={styles.zoomButton} 
-                                onPress={() => setZoom(prev => Math.max(device.minZoom, (prev || device.minZoom) - 0.2))}
+                                onPress={() => setZoom(prev => Math.max(0, prev - 0.1))}
                             >
                                 <Text style={styles.zoomText}>-</Text>
                             </TouchableOpacity>
                             <View style={styles.zoomDivider} />
                             <TouchableOpacity 
                                 style={styles.zoomButton} 
-                                onPress={() => setZoom(prev => Math.min(device.maxZoom, (prev || device.minZoom) + 0.2))}
+                                onPress={() => setZoom(prev => Math.min(1, prev + 0.1))}
                             >
                                 <Text style={styles.zoomText}>+</Text>
                             </TouchableOpacity>
@@ -162,9 +152,9 @@ export function ThemedScanner({
 
                     <View style={styles.overlay}>
                         <View style={styles.unfocusedContainer}></View>
-                        <View style={styles.middleContainer}>
+                        <View style={[styles.middleContainer, { height: scannerType === 'id' ? 120 : 220 }]}>
                             <View style={styles.unfocusedContainer}></View>
-                            <View style={styles.focusedContainer}>
+                            <View style={[styles.focusedContainer, { flex: scannerType === 'id' ? 10 : 3 }]}>
                                 <View style={styles.cornerTopLeft}></View>
                                 <View style={styles.cornerTopRight}></View>
                                 <View style={styles.cornerBottomLeft}></View>
@@ -179,8 +169,8 @@ export function ThemedScanner({
                         <View style={styles.hintContainer}>
                             <Text style={styles.hintText}>ALIGN BARCODE WITHIN RECTANGLE</Text>
                             <Text style={styles.subHintText}>Use + / - to adjust zoom if blurry</Text>
-                            <View style={[styles.macroBadge, { backgroundColor: (zoom || 1) > device.minZoom ? '#3B82F6' : 'rgba(255,255,255,0.2)' }]}>
-                                <Text style={styles.macroText}>Zoom: {((zoom || device.minZoom) / device.minZoom).toFixed(1)}x</Text>
+                            <View style={[styles.macroBadge, { backgroundColor: zoom > 0 ? '#3B82F6' : 'rgba(255,255,255,0.2)' }]}>
+                                <Text style={styles.macroText}>Zoom: {(1 + zoom * 4).toFixed(1)}x</Text>
                             </View>
                         </View>
                 </View>
@@ -192,6 +182,12 @@ export function ThemedScanner({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    loadingOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     header: {
         flexDirection: 'row',

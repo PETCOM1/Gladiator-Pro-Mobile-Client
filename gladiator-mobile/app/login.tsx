@@ -41,6 +41,7 @@ export default function LoginScreen() {
         try {
             // Centralized baseUrl from @/constants/api
             const { baseUrl } = require('@/constants/api');
+            console.log(`[LOGIN] Attempting login at: ${baseUrl}/api/auth/login`);
 
             const response = await fetch(`${baseUrl}/api/auth/login`, {
                 method: 'POST',
@@ -51,7 +52,15 @@ export default function LoginScreen() {
                 body: JSON.stringify({ email: username, password }),
             });
 
-            const data = await response.json();
+            const responseText = await response.text();
+            
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('[LOGIN] JSON Parse Error. Response start:', responseText.substring(0, 100));
+                throw new Error(`Invalid server response (not JSON). ${responseText.substring(0, 50)}...`);
+            }
 
             if (!response.ok) {
                 throw new Error(data.message || 'Authentication failed');
@@ -70,6 +79,7 @@ export default function LoginScreen() {
             clearInterval(interval);
             setLoading(false);
             setProgress(0);
+            console.error('[LOGIN] Error:', error);
             Alert.alert('Login Failed', error.message || 'An unexpected error occurred.');
         }
     };

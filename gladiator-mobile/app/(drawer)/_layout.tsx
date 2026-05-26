@@ -111,8 +111,9 @@ export default function DrawerLayout() {
         drawerIcon: ({ color }) => <IconSymbol size={22} name="pencil.and.outline" color={color} />,
       }} />
       <Drawer.Screen name="patrol" options={{
-        drawerLabel: 'Patrol', title: 'Patrol',
+        drawerLabel: 'Patrol (Soon)', title: 'Patrol',
         drawerIcon: ({ color }) => <IconSymbol size={22} name="map.fill" color={color} />,
+        drawerItemStyle: { opacity: 0.5 },
       }} />
       <Drawer.Screen name="visitors" options={{
         drawerLabel: 'Visitors', title: 'Visitors',

@@ -9,8 +9,8 @@ import { Platform } from 'react-native';
  * 2. Type 'ipconfig'
  * 3. Look for 'IPv4 Address' under your Wi-Fi or Ethernet adapter.
  */
-// Using a Public Tunnel (Localtunnel) to bypass university Wi-Fi restrictions
-export const TUNNEL_URL = 'https://gladiator-pro-dev.loca.lt';
+// Updated to local IP since public tunnel is currently down
+export const TUNNEL_URL = 'http://146.141.180.226:5000';
 
 export const getBaseUrl = () => {
     if (Platform.OS === 'web') {

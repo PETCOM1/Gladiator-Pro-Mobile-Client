@@ -3,17 +3,30 @@ import { TacticalBackground } from '@/components/TacticalBackground';
 import { ThemedButton } from '@/components/ThemedButton';
 import { ThemedCard } from '@/components/ThemedCard';
 import { ThemedInput } from '@/components/ThemedInput';
+import { ThemedPicker } from '@/components/ThemedPicker';
 import { ThemedScanner } from '@/components/ThemedScanner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/context/AuthContext';
 import { parseSaIdDocument, parseSaLicenceDisc } from '@/utils/saIdParser';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Alert, Animated, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { baseUrl } from '@/constants/api';
 
-export default function VisitorsScreen() {
+const PURPOSE_OPTIONS = [
+    { label: 'Official Business',      value: 'Official Business',      icon: 'briefcase.fill',         color: '#3B82F6' },
+    { label: 'Delivery',               value: 'Delivery',               icon: 'shippingbox.fill',        color: '#F59E0B' },
+    { label: 'Maintenance / Repairs',  value: 'Maintenance / Repairs',  icon: 'wrench.and.screwdriver.fill', color: '#8B5CF6' },
+    { label: 'Personal Visit',         value: 'Personal Visit',         icon: 'person.fill',             color: '#10B981' },
+    { label: 'Contractor',             value: 'Contractor',             icon: 'hammer.fill',             color: '#EF4444' },
+    { label: 'Interview / Meeting',    value: 'Interview / Meeting',    icon: 'calendar.badge.plus',     color: '#06B6D4' },
+    { label: 'Emergency',              value: 'Emergency',              icon: 'exclamationmark.triangle.fill', color: '#F97316' },
+    { label: 'Other',                  value: 'Other',                  icon: 'ellipsis.circle.fill',    color: '#6B7280' },
+];
+
+
+function VisitorsScreen() {
     const textColor = useThemeColor({}, 'text');
     const tintColor = useThemeColor({}, 'tint');
     const dimText = useThemeColor({}, 'dimText');
@@ -23,6 +36,7 @@ export default function VisitorsScreen() {
     const insets = useSafeAreaInsets();
 
     const [showScanner, setShowScanner] = useState(false);
+    const surnameInputRef = useRef<TextInput>(null);
     const [surnameInitials, setSurnameInitials] = useState('');
     const [idNumber, setIdNumber] = useState('');
     const [institution, setInstitution] = useState('');
@@ -31,8 +45,54 @@ export default function VisitorsScreen() {
     const [cellNumber, setCellNumber] = useState('');
     const [purpose, setPurpose] = useState('');
     const [hostName, setHostName] = useState('');
+    // UI feedback for name auto-fill
+    const [isLookingUp, setIsLookingUp] = useState(false);
+    const [nameRequired, setNameRequired] = useState(false);
 
     const { user, token } = useAuth();
+
+    const lookupVisitor = async (idNum: string, currentName: string) => {
+        setIsLookingUp(true);
+        try {
+            const response = await fetch(`${baseUrl}/api/visitors/search/${idNum}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'x-tenant-id': user?.tenantId || '',
+                    'Bypass-Tunnel-Reminder': 'true'
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Prefer the historical name only if we don't already have one from the scan
+                if (data.surnameInitials && !currentName) {
+                    setSurnameInitials(data.surnameInitials);
+                    setNameRequired(false);
+                } else if (!currentName) {
+                    // Still nothing — flag the field
+                    setNameRequired(true);
+                    setTimeout(() => surnameInputRef.current?.focus(), 150);
+                }
+                if (data.institution) setInstitution(data.institution);
+                if (data.townVillage) setTownVillage(data.townVillage);
+                if (data.cellNumber) setCellNumber(data.cellNumber);
+                if (data.vehicleReg && !vehicleReg) setVehicleReg(data.vehicleReg);
+            } else {
+                // Lookup failed or visitor unknown — flag name if still empty
+                if (!currentName) {
+                    setNameRequired(true);
+                    setTimeout(() => surnameInputRef.current?.focus(), 150);
+                }
+            }
+        } catch (error) {
+            console.log('[Autofill] Lookup failed:', error);
+            if (!currentName) {
+                setNameRequired(true);
+                setTimeout(() => surnameInputRef.current?.focus(), 150);
+            }
+        } finally {
+            setIsLookingUp(false);
+        }
+    };
     const [visitors, setVisitors] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
     const [selectedSiteId, setSelectedSiteId] = useState<string | undefined>(user?.siteId);
@@ -56,31 +116,41 @@ export default function VisitorsScreen() {
 
     const parseSAIdBarcode = (data: string) => {
         const result = parseSaIdDocument(data);
+        setNameRequired(false);
 
         if (result.type === 'id_number_only') {
             setIdNumber(result.idNumber ?? '');
+            // No name in a bare ID number — check history
+            lookupVisitor(result.idNumber ?? '', '');
             flashGreen();
 
         } else if (result.type === 'green_id') {
             if (result.idNumber) setIdNumber(result.idNumber);
             if (result.surname || result.initials) {
                 setSurnameInitials(`${result.surname ?? ''} ${result.initials ?? ''}`.trim());
+                setNameRequired(false);
             }
             flashGreen();
 
         } else if (result.type === 'drivers_licence') {
             if (result.idNumber) {
                 setIdNumber(result.idNumber);
+                let extractedName = '';
+                if (result.surname) {
+                    extractedName = `${result.surname} ${result.initials ?? ''}`.trim();
+                    setSurnameInitials(extractedName);
+                    if (result.fuzzyName) {
+                        // Fuzzy match — still do a lookup to confirm / fill other fields
+                        // but don't override the name we already have
+                        lookupVisitor(result.idNumber, extractedName);
+                    }
+                } else {
+                    // No name at all — trigger historical lookup
+                    lookupVisitor(result.idNumber, '');
+                }
                 flashGreen();
-                Alert.alert(
-                    "Driver's Licence Detected",
-                    `ID number pre-filled (${result.idNumber}). The driver's licence card is encrypted, so please complete the remaining fields (name, institution, etc.) manually.`
-                );
             } else {
-                Alert.alert(
-                    "Driver's Licence Detected",
-                    "The driver's licence card is encrypted and could not be decoded automatically. Please enter the visitor's details manually."
-                );
+                Alert.alert('Scan Failed', 'Could not extract ID number.');
             }
 
         } else {
@@ -318,16 +388,40 @@ export default function VisitorsScreen() {
                         <View style={[styles.dividerLine, { backgroundColor: cardBorder }]} />
                     </View>
 
-                    {/* Visitor Form */}
                     <ThemedCard headerTitle="Visitor Registration">
-                        <ThemedInput label="Surname & Initials" placeholder="e.g. Smith J" value={surnameInitials} onChangeText={setSurnameInitials} icon="person.fill" />
+                        {isLookingUp && (
+                            <View style={styles.lookupBanner}>
+                                <ActivityIndicator size="small" color={tintColor} />
+                                <Text style={[styles.lookupBannerText, { color: dimText }]}>Looking up visitor record…</Text>
+                            </View>
+                        )}
+                        {nameRequired && !isLookingUp && (
+                            <View style={[styles.lookupBanner, { backgroundColor: `${accentColor}20`, borderColor: accentColor }]}>
+                                <IconSymbol name="exclamationmark.triangle.fill" size={16} color={accentColor} />
+                                <Text style={[styles.lookupBannerText, { color: accentColor }]}>Please enter the visitor's name manually</Text>
+                            </View>
+                        )}
+                        <ThemedInput 
+                            ref={surnameInputRef}
+                            label="Surname & Initials" 
+                            placeholder={nameRequired ? 'Type name here…' : 'e.g. Smith J'}
+                            value={surnameInitials} 
+                            onChangeText={(v) => { setSurnameInitials(v); if (v) setNameRequired(false); }}
+                            icon="person.fill"
+                        />
                         <ThemedInput label="ID Number" placeholder="SA ID or passport" value={idNumber} onChangeText={setIdNumber} keyboardType="numeric" icon="creditcard.fill" />
-                        <ThemedInput label="Institution" placeholder="Organization/Company" value={institution} onChangeText={setInstitution} icon="building.2.fill" />
+                        <ThemedInput label="Institution (Optional)" placeholder="Organization/Company" value={institution} onChangeText={setInstitution} icon="building.2.fill" />
                         <ThemedInput label="Vehicle Reg" placeholder="Plate number" value={vehicleReg} onChangeText={setVehicleReg} icon="car.fill" />
                         <ThemedInput label="Town/Village" placeholder="Residence" value={townVillage} onChangeText={setTownVillage} icon="mappin.and.ellipse" />
                         <ThemedInput label="Cell Number" placeholder="Contact number" value={cellNumber} onChangeText={setCellNumber} keyboardType="phone-pad" icon="phone.fill" />
-                        <ThemedInput label="Purpose" placeholder="Reason for visit" value={purpose} onChangeText={setPurpose} icon="doc.text.fill" />
-                        <ThemedInput label="Host Contact" placeholder="Person to meet" value={hostName} onChangeText={setHostName} icon="person.2.fill" />
+                        <ThemedPicker
+                            label="Purpose of Visit"
+                            options={PURPOSE_OPTIONS}
+                            selectedValue={purpose}
+                            onValueChange={setPurpose}
+                            placeholder="Select purpose…"
+                        />
+                        <ThemedInput label="Host Contact (Optional)" placeholder="Person to meet" value={hostName} onChangeText={setHostName} icon="person.2.fill" />
 
                         <View style={styles.submitWrap}>
                             <ThemedButton title={isSubmitting ? "Granting..." : "Grant Access"} variant="success" size="large" onPress={handleSubmit} disabled={isSubmitting} />
@@ -413,6 +507,19 @@ const styles = StyleSheet.create({
     dividerLine: { flex: 1, height: 1 },
     dividerText: { fontSize: 13, marginHorizontal: 14 },
     submitWrap: { marginTop: 12 },
+    lookupBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        marginBottom: 10,
+    },
+    lookupBannerText: { fontSize: 13, fontWeight: '500', flex: 1 },
     activeSection: { marginTop: 32 },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
@@ -430,3 +537,5 @@ const styles = StyleSheet.create({
     visitorMeta: { fontSize: 13, marginBottom: 4 },
     visitorTime: { fontSize: 12, fontWeight: '600' },
 });
+
+export default VisitorsScreen;
