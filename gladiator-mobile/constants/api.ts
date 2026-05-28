@@ -10,13 +10,9 @@ import { Platform } from 'react-native';
  * 3. Look for 'IPv4 Address' under your Wi-Fi or Ethernet adapter.
  */
 // Updated to local IP since public tunnel is currently down
-export const TUNNEL_URL = 'http://146.141.180.226:5000';
+export const TUNNEL_URL = 'https://gladiator-pro-1.onrender.com';
 
 export const getBaseUrl = () => {
-    if (Platform.OS === 'web') {
-        return 'http://localhost:5000';
-    }
-    // Use the tunnel URL for physical devices
     return TUNNEL_URL;
 };
 
