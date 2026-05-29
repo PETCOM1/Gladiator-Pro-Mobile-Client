@@ -17,7 +17,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
-        "NSLocalNetworkUsageDescription": "This app needs access to the local network to connect to the development server."
+        "NSLocalNetworkUsageDescription": "This app needs access to the local network to connect to the development server.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

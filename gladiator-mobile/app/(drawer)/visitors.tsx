@@ -8,9 +8,9 @@ import { ThemedScanner } from '@/components/ThemedScanner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/context/AuthContext';
-import { parseSaIdDocument, parseSaLicenceDisc } from '@/utils/saIdParser';
+import { parseSaIdDocument, parseSaLicenceDisc, type ParsedIdDocument } from '@/utils/saIdParser';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
+import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, View, Platform, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { baseUrl } from '@/constants/api';
 
@@ -48,6 +48,9 @@ function VisitorsScreen() {
     // UI feedback for name auto-fill
     const [isLookingUp, setIsLookingUp] = useState(false);
     const [nameRequired, setNameRequired] = useState(false);
+    // Scan result confirmation
+    const [scanResult, setScanResult] = useState<ParsedIdDocument | null>(null);
+    const [showScanResult, setShowScanResult] = useState(false);
 
     const { user, token } = useAuth();
 
@@ -63,21 +66,24 @@ function VisitorsScreen() {
             });
             if (response.ok) {
                 const data = await response.json();
-                // Prefer the historical name only if we don't already have one from the scan
-                if (data.surnameInitials && !currentName) {
-                    setSurnameInitials(data.surnameInitials);
-                    setNameRequired(false);
-                } else if (!currentName) {
-                    // Still nothing — flag the field
-                    setNameRequired(true);
-                    setTimeout(() => surnameInputRef.current?.focus(), 150);
+                // Only use the stored name if we have NO name from the barcode scan
+                if (!currentName) {
+                    if (data.surnameInitials) {
+                        setSurnameInitials(data.surnameInitials);
+                        setNameRequired(false);
+                    } else {
+                        // Visitor unknown & barcode had no name — ask user to type it
+                        setNameRequired(true);
+                        setTimeout(() => surnameInputRef.current?.focus(), 150);
+                    }
                 }
-                if (data.institution) setInstitution(data.institution);
-                if (data.townVillage) setTownVillage(data.townVillage);
-                if (data.cellNumber) setCellNumber(data.cellNumber);
+                // Always backfill optional fields if not yet set
+                if (data.institution && !institution) setInstitution(data.institution);
+                if (data.townVillage && !townVillage) setTownVillage(data.townVillage);
+                if (data.cellNumber && !cellNumber) setCellNumber(data.cellNumber);
                 if (data.vehicleReg && !vehicleReg) setVehicleReg(data.vehicleReg);
             } else {
-                // Lookup failed or visitor unknown — flag name if still empty
+                // Visitor not found — only flag name field if barcode had no name
                 if (!currentName) {
                     setNameRequired(true);
                     setTimeout(() => surnameInputRef.current?.focus(), 150);
@@ -118,45 +124,69 @@ function VisitorsScreen() {
         const result = parseSaIdDocument(data);
         setNameRequired(false);
 
-        if (result.type === 'id_number_only') {
-            setIdNumber(result.idNumber ?? '');
-            // No name in a bare ID number — check history
-            lookupVisitor(result.idNumber ?? '', '');
+        if (result.type === 'unknown') {
+            setIdNumber(data.substring(0, 30));
             flashGreen();
+            return;
+        }
+
+        // Store the result and show confirmation modal
+        setScanResult(result);
+        setShowScanResult(true);
+        flashGreen();
+    };
+
+    const confirmScanResult = (result: ParsedIdDocument) => {
+        setShowScanResult(false);
+        setScanResult(null);
+
+        if (result.type === 'id_number_only') {
+            // Bare ID number — no name in barcode, always do a backend lookup
+            setIdNumber(result.idNumber ?? '');
+            lookupVisitor(result.idNumber ?? '', '');
 
         } else if (result.type === 'green_id') {
-            if (result.idNumber) setIdNumber(result.idNumber);
-            if (result.surname || result.initials) {
-                setSurnameInitials(`${result.surname ?? ''} ${result.initials ?? ''}`.trim());
+            // Green ID book — name fields are in the barcode (pipe-delimited)
+            const idNum = result.idNumber ?? '';
+            if (idNum) setIdNumber(idNum);
+
+            // Build the full name from surname + given names
+            const surname   = (result.surname ?? '').trim();
+            const givenNames = (result.firstName ?? result.initials ?? '').trim();
+            // SA Green ID stores: SURNAME | GIVEN-NAMES — put surname first
+            const fullName = [surname, givenNames].filter(Boolean).join(' ');
+
+            if (fullName) {
+                setSurnameInitials(fullName);
                 setNameRequired(false);
+                // Still lookup to backfill institution / town / cell for returning visitors
+                if (idNum) lookupVisitor(idNum, fullName);
+            } else {
+                // No name in barcode (rare) — flag and lookup
+                setNameRequired(true);
+                setTimeout(() => surnameInputRef.current?.focus(), 150);
+                if (idNum) lookupVisitor(idNum, '');
             }
-            flashGreen();
 
         } else if (result.type === 'drivers_licence') {
             if (result.idNumber) {
                 setIdNumber(result.idNumber);
-                let extractedName = '';
-                if (result.surname) {
-                    extractedName = `${result.surname} ${result.initials ?? ''}`.trim();
+                const surname    = (result.surname ?? '').trim();
+                const givenNames = (result.firstName ?? result.initials ?? '').trim();
+                const extractedName = [surname, givenNames].filter(Boolean).join(' ');
+
+                if (extractedName) {
                     setSurnameInitials(extractedName);
-                    if (result.fuzzyName) {
-                        // Fuzzy match — still do a lookup to confirm / fill other fields
-                        // but don't override the name we already have
-                        lookupVisitor(result.idNumber, extractedName);
-                    }
+                    setNameRequired(false);
+                    // For fuzzy names always verify via lookup; for clean extractions still
+                    // lookup to backfill extra fields for returning visitors
+                    lookupVisitor(result.idNumber, extractedName);
                 } else {
-                    // No name at all — trigger historical lookup
+                    setNameRequired(true);
+                    setTimeout(() => surnameInputRef.current?.focus(), 150);
                     lookupVisitor(result.idNumber, '');
                 }
-                flashGreen();
-            } else {
-                Alert.alert('Scan Failed', 'Could not extract ID number.');
             }
-
-        } else {
-            // Unknown barcode — use raw value as fallback
-            setIdNumber(data.substring(0, 30));
-            flashGreen();
         }
     };
 
@@ -323,14 +353,88 @@ function VisitorsScreen() {
                 visible
                 onScan={handleScan}
                 onClose={() => setShowScanner(false)}
-                scannerType="id" // Both ID and Disc use PDF417
+                scannerType="id"
                 title={scanTarget === 'disc' ? 'Scan Licence Disc' : 'Scan ID Document'}
             />
         );
     }
 
+    // Scan result confirmation modal
+    const ScanResultModal = () => {
+        if (!scanResult) return null;
+        const docLabel = scanResult.type === 'green_id' ? '🪪 SA Green ID Book'
+            : scanResult.type === 'drivers_licence' ? '🚗 Driver\'s Licence'
+            : '🔢 ID Number Only';
+
+        // A name was successfully extracted from the barcode
+        const hasName = !!((scanResult.surname ?? scanResult.firstName ?? scanResult.initials ?? '').trim());
+
+        const rows: { label: string; value: string | undefined }[] = [
+            { label: 'Document Type', value: docLabel },
+            { label: 'ID Number',     value: scanResult.idNumber },
+            { label: 'Surname',       value: scanResult.surname },
+            { label: 'First Name(s)', value: scanResult.firstName ?? scanResult.initials },
+            { label: 'Date of Birth', value: scanResult.dateOfBirth },
+            { label: 'Gender',        value: scanResult.gender },
+            { label: 'Nationality',   value: scanResult.nationality },
+        ].filter(r => r.value);
+
+        return (
+            <Modal visible={showScanResult} transparent animationType="slide" onRequestClose={() => setShowScanResult(false)}>
+                <View style={srStyles.overlay}>
+                    <View style={[srStyles.sheet, { backgroundColor: useThemeColor({}, 'card') }]}>
+                        <Text style={[srStyles.sheetTitle, { color: textColor }]}>📄 Document Scanned</Text>
+
+                        {/* ✅ Name auto-filled success banner */}
+                        {hasName && !scanResult.fuzzyName && (
+                            <View style={srStyles.successBanner}>
+                                <Text style={srStyles.successText}>✅ Name auto-filled from document</Text>
+                            </View>
+                        )}
+
+                        {/* ⚠️ Fuzzy name warning — driver's licence encrypted */}
+                        {scanResult.fuzzyName && (
+                            <View style={srStyles.warningBanner}>
+                                <Text style={srStyles.warningText}>⚠️ Name extracted approximately — please verify</Text>
+                            </View>
+                        )}
+
+                        {/* ⚠️ No name at all — user must type it */}
+                        {!hasName && scanResult.type !== 'id_number_only' && (
+                            <View style={srStyles.warningBanner}>
+                                <Text style={srStyles.warningText}>⚠️ Name not found in barcode — you'll be prompted to enter it</Text>
+                            </View>
+                        )}
+
+                        {scanResult.partialDriversLicence && !scanResult.idNumber && (
+                            <View style={srStyles.warningBanner}>
+                                <Text style={srStyles.warningText}>⚠️ Encrypted licence — only ID extracted</Text>
+                            </View>
+                        )}
+
+                        {rows.map(r => (
+                            <View key={r.label} style={[srStyles.row, { borderBottomColor: cardBorder }]}>
+                                <Text style={[srStyles.rowLabel, { color: dimText }]}>{r.label}</Text>
+                                <Text style={[srStyles.rowValue, { color: textColor }]}>{r.value}</Text>
+                            </View>
+                        ))}
+                        <View style={srStyles.btnRow}>
+                            <TouchableOpacity style={[srStyles.btn, { backgroundColor: cardBorder }]} onPress={() => setShowScanResult(false)}>
+                                <Text style={[srStyles.btnText, { color: dimText }]}>Re-scan</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[srStyles.btn, { backgroundColor: tintColor }]} onPress={() => confirmScanResult(scanResult)}>
+                                <Text style={[srStyles.btnText, { color: '#fff' }]}>Confirm ✓</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
     return (
         <TacticalBackground style={styles.container}>
+            <ScanResultModal />
             <Animated.View style={[styles.flash, { opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.08] }), backgroundColor: successColor }]} pointerEvents="none" />
 
             <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
@@ -539,3 +643,84 @@ const styles = StyleSheet.create({
 });
 
 export default VisitorsScreen;
+
+const srStyles = StyleSheet.create({
+    overlay: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    sheet: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: 40,
+    },
+    sheetTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    successBanner: {
+        backgroundColor: 'rgba(16,185,129,0.15)',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#10B981',
+    },
+    successText: {
+        color: '#10B981',
+        fontSize: 13,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    warningBanner: {
+        backgroundColor: 'rgba(251,191,36,0.15)',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#FBBF24',
+    },
+    warningText: {
+        color: '#FBBF24',
+        fontSize: 13,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    rowLabel: {
+        fontSize: 13,
+        fontWeight: '500',
+        flex: 1,
+    },
+    rowValue: {
+        fontSize: 14,
+        fontWeight: '700',
+        flex: 2,
+        textAlign: 'right',
+    },
+    btnRow: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 20,
+    },
+    btn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    btnText: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+});

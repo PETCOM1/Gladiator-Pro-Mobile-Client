@@ -15,8 +15,16 @@ export type ParsedIdDocument = {
     idNumber?: string;
     /** Surname */
     surname?: string;
-    /** Name / initials */
+    /** Initials (backward-compat) or given names abbreviation */
     initials?: string;
+    /** Full given / first names if available (Green ID or fuzzy extraction) */
+    firstName?: string;
+    /** Date of birth derived from ID number, format YYYY-MM-DD */
+    dateOfBirth?: string;
+    /** Gender derived from the 7th digit of the ID number */
+    gender?: 'Male' | 'Female';
+    /** Nationality if available (Green ID) */
+    nationality?: string;
     /**
      * True if a driver's licence was detected but not all fields could be
      * extracted — caller should prompt user to fill in manually.
@@ -219,6 +227,29 @@ function isValidSaIdNumber(id: string): boolean {
 }
 
 /**
+ * Derives date of birth and gender from a valid 13-digit SA ID number.
+ * Format: YYMMDD GGGGG C ZZZ
+ *   YYMMDD  – date of birth
+ *   GGGGG   – 0000-4999 = Female, 5000-9999 = Male
+ *   C       – citizenship (0 = citizen, 1 = permanent resident)
+ */
+function deriveIdDetails(idNumber: string): { dateOfBirth: string; gender: 'Male' | 'Female' } | undefined {
+    if (!isValidSaIdNumber(idNumber)) return undefined;
+    const yy = idNumber.substring(0, 2);
+    const mm = idNumber.substring(2, 4);
+    const dd = idNumber.substring(4, 6);
+    const genderDigit = parseInt(idNumber[6], 10);
+    const yyInt = parseInt(yy, 10);
+    const currentYearShort = new Date().getFullYear() % 100;
+    // If yy > (currentYear + 5), assume 1900s; otherwise 2000s
+    const century = yyInt > currentYearShort + 5 ? '19' : '20';
+    return {
+        dateOfBirth: `${century}${yy}-${mm}-${dd}`,
+        gender: genderDigit >= 5 ? 'Male' : 'Female',
+    };
+}
+
+/**
  * Main entry point.  Pass the raw string returned by expo-camera's
  * `onBarcodeScanned` callback.
  */
@@ -229,54 +260,57 @@ export function parseSaIdDocument(raw: string): ParsedIdDocument {
 
     // ── 1. Bare 13-digit SA ID number ─────────────────────────────────────
     if (/^\d{13}$/.test(trimmed) && isValidSaIdNumber(trimmed)) {
-        return { type: 'id_number_only', idNumber: trimmed };
+        const details = deriveIdDetails(trimmed);
+        return { type: 'id_number_only', idNumber: trimmed, ...details };
     }
 
     // ── 2. SA Driver's Licence / Smart ID (binary PDF417) — CHECK FIRST ─────
-    // These are RSA-encrypted by DoT. Must eliminate binary blobs before
-    // any separator check, because binary data contains \n and ^ bytes that
-    // would fool the Green ID parser.
     if (looksLikeDriversLicence(trimmed)) {
         const idNumber = extractIdNumberFromRaw(trimmed);
         if (idNumber && isValidSaIdNumber(idNumber)) {
-            // Attempt fuzzy ASCII name extraction from the encrypted payload
             const fuzzy = extractNameFromBinary(trimmed);
-            console.log('[PARSER] Driver\'s Licence / Smart ID — encrypted', fuzzy ? '| fuzzy name found' : '| name not extractable');
+            const details = deriveIdDetails(idNumber);
+            console.log('[PARSER] Driver\'s Licence — encrypted', fuzzy ? '| fuzzy name: ' + fuzzy.surname : '| name not extractable');
             return {
                 type: 'drivers_licence',
                 idNumber,
                 surname: fuzzy?.surname,
                 initials: fuzzy?.givenNames,
+                firstName: fuzzy?.givenNames,
                 partialDriversLicence: !fuzzy?.surname,
                 fuzzyName: !!fuzzy?.surname,
+                ...details,
             };
         }
     }
 
     // ── 3. SA Green ID book barcode ─────────────────────────────────────────
-    // At this point we know the data is NOT an encrypted binary blob.
-    // The Green ID book PDF417 uses pipe (|) or caret (^) as field separators.
-    // Format: idNumber|surname|initials|gender|nationality|...
+    // Format: idNumber|surname|names|gender|nationality|...
     if (trimmed.length > 20) {
-        // Try all known separators
-        for (const sep of ['|', '^', '\r\n', '\n', '\x1c']) {
+        // Try all known separators (include \r alone for older readers)
+        for (const sep of ['|', '^', '\r\n', '\n', '\r', '\x1c', '\x0d']) {
             if (trimmed.includes(sep)) {
                 const parts = trimmed.split(sep).map(p => p.trim()).filter(Boolean);
                 if (parts.length >= 2) {
-                    // Find the part that contains a valid 13-digit ID
                     const idPart = parts.find(p => /^\d{13}$/.test(p.replace(/\D/g, '')) && isValidSaIdNumber(p.replace(/\D/g, '')));
                     const idNumber = idPart ? idPart.replace(/\D/g, '') : parts[0]?.replace(/\D/g, '');
                     const idIdx = idPart ? parts.indexOf(idPart) : 0;
                     const surname = parts[idIdx + 1] || '';
-                    const initials = parts[idIdx + 2] || '';
+                    // Field 3 in Green ID is full given names (not just initials)
+                    const givenNames = parts[idIdx + 2] || '';
+                    const nationality = parts[idIdx + 4] || undefined;
+                    const details = idNumber && isValidSaIdNumber(idNumber) ? deriveIdDetails(idNumber) : undefined;
 
-                    console.log('[PARSER] Green ID — sep:', JSON.stringify(sep), '| surname:', surname, '| initials:', initials);
+                    console.log('[PARSER] Green ID — sep:', JSON.stringify(sep), '| surname:', surname, '| names:', givenNames);
 
                     return {
                         type: 'green_id',
                         idNumber: idNumber && isValidSaIdNumber(idNumber) ? idNumber : undefined,
                         surname: surname || undefined,
-                        initials: initials || undefined,
+                        initials: givenNames || undefined,
+                        firstName: givenNames || undefined,
+                        nationality: nationality || undefined,
+                        ...details,
                     };
                 }
             }
@@ -287,11 +321,14 @@ export function parseSaIdDocument(raw: string): ParsedIdDocument {
             const parts = trimmed.split(/[áà]/).map(p => p.trim()).filter(Boolean);
             const candidateId = parts.find(p => /^\d{13}$/.test(p));
             if (candidateId) {
+                const details = deriveIdDetails(candidateId);
                 return {
                     type: 'green_id',
                     idNumber: candidateId,
                     surname: parts[1] || undefined,
                     initials: parts[2] || undefined,
+                    firstName: parts[2] || undefined,
+                    ...details,
                 };
             }
         }
