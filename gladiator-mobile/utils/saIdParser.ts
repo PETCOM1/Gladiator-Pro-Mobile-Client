@@ -1,5 +1,7 @@
+import { decryptSaDriversLicence } from './saDriversLicenceDecryptor';
+
 /**
- * SA Identity Document &amp; Vehicle Licence Disc Barcode Parser
+ * SA Identity Document & Vehicle Licence Disc Barcode Parser
  *
  * Handles:
  *  1. SA Green ID Book   – pipe-delimited ASCII barcode
@@ -266,6 +268,24 @@ export function parseSaIdDocument(raw: string): ParsedIdDocument {
 
     // ── 2. SA Driver's Licence / Smart ID (binary PDF417) — CHECK FIRST ─────
     if (looksLikeDriversLicence(trimmed)) {
+        // Try precise decryption first (Driver's Licence)
+        const decrypted = decryptSaDriversLicence(trimmed);
+        if (decrypted) {
+            console.log('[PARSER] Driver\'s Licence — decrypted EXACTLY');
+            return {
+                type: 'drivers_licence',
+                idNumber: decrypted.idNumber,
+                surname: decrypted.surname,
+                initials: decrypted.initials,
+                firstName: decrypted.initials, // fallback mapping
+                partialDriversLicence: false,
+                fuzzyName: false,
+                dateOfBirth: decrypted.dateOfBirth,
+                gender: decrypted.gender,
+            };
+        }
+
+        // Fallback to fuzzy extraction
         const idNumber = extractIdNumberFromRaw(trimmed);
         if (idNumber && isValidSaIdNumber(idNumber)) {
             const fuzzy = extractNameFromBinary(trimmed);
@@ -287,8 +307,8 @@ export function parseSaIdDocument(raw: string): ParsedIdDocument {
     // ── 3. SA Green ID book barcode ─────────────────────────────────────────
     // Format: idNumber|surname|names|gender|nationality|...
     if (trimmed.length > 20) {
-        // Try all known separators (include \r alone for older readers)
-        for (const sep of ['|', '^', '\r\n', '\n', '\r', '\x1c', '\x0d']) {
+        // Try all known separators
+        for (const sep of ['|', '^', '\r\n', '\n', '\r', '\x1c', '\x0d', '\x0a', '\x1e']) {
             if (trimmed.includes(sep)) {
                 const parts = trimmed.split(sep).map(p => p.trim()).filter(Boolean);
                 if (parts.length >= 2) {
@@ -360,7 +380,7 @@ export type ParsedLicenceDisc = {
  *  - Standard: 2-3 uppercase letters + 1-6 digits + optional 1-2 letters  (e.g. "CA123456", "GP123B")
  *  - Older format: 3 letters + space + 6 digits  (e.g. "CAA 123456")
  */
-const SA_REG_REGEX = /\b([A-Z]{2,3}\s?\d{3,6}[A-Z]{0,2})\b/g;
+const SA_REG_REGEX = /\b([A-Z]{2,3}\s?\d{3,6}(?:\s?[A-Z]{1,2})?)\b/g;
 
 /** VIN: 17 uppercase alphanumeric characters (excluding I, O, Q) */
 const VIN_REGEX = /\b([A-HJ-NPR-Z0-9]{17})\b/;

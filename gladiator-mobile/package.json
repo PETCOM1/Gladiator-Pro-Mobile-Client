@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@mgcrea/vision-camera-barcode-scanner": "^0.12.3",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/drawer": "^7.8.1",
     "@react-navigation/elements": "^2.6.3",

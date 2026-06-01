@@ -8,15 +8,16 @@ import {
     TouchableOpacity,
     View,
     ActivityIndicator,
+    Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     Camera,
     useCameraDevice,
     useCameraPermission,
-    useCodeScanner,
-    type CodeType,
+    useCameraFormat,
 } from 'react-native-vision-camera';
+import { useBarcodeScanner, type BarcodeType, type Barcode } from '@mgcrea/vision-camera-barcode-scanner';
 import * as Haptics from 'expo-haptics';
 
 export type ThemedScannerProps = {
@@ -24,13 +25,13 @@ export type ThemedScannerProps = {
     onClose: () => void;
     onScan: (data: string) => void;
     title?: string;
-    /** 'id' for PDF417 (ID/Licence/Disc), 'qr' for standard QR */
-    scannerType?: 'id' | 'qr';
+    /** 'id' for PDF417 (ID/Licence), 'disc' for vehicle disc, 'qr' for standard QR */
+    scannerType?: 'id' | 'qr' | 'disc';
 };
 
-/** Code types to scan for each mode */
-const ID_TYPES: CodeType[] = [
-    'pdf-417',   // SA ID book, driver's licence, licence disc
+/** ZXing barcode types for each scan mode */
+const ID_BARCODE_TYPES: BarcodeType[] = [
+    'pdf-417',     // SA ID book, driver's licence, licence disc
     'qr',
     'aztec',
     'data-matrix',
@@ -43,7 +44,7 @@ const ID_TYPES: CodeType[] = [
     'upc-e',
 ];
 
-const QR_TYPES: CodeType[] = ['qr', 'data-matrix'];
+const QR_BARCODE_TYPES: BarcodeType[] = ['qr', 'data-matrix'];
 
 export function ThemedScanner({
     visible,
@@ -52,28 +53,56 @@ export function ThemedScanner({
     title = 'Scan Document',
     scannerType = 'id',
 }: ThemedScannerProps) {
-    const textColor     = useThemeColor({}, 'text');
+    const textColor       = useThemeColor({}, 'text');
     const backgroundColor = useThemeColor({}, 'background');
-    const tintColor     = useThemeColor({}, 'tint');
-    const insets        = useSafeAreaInsets();
+    const tintColor       = useThemeColor({}, 'tint');
+    const insets          = useSafeAreaInsets();
 
     const { hasPermission, requestPermission } = useCameraPermission();
     const device = useCameraDevice('back');
 
     const [scanned, setScanned]   = useState(false);
     const [torch, setTorch]       = useState<'on' | 'off'>('off');
-    const [zoom, setZoom]         = useState(scannerType === 'id' ? 1.5 : 1);
+    const [zoom, setZoom]         = useState(scannerType === 'disc' ? 2 : 1.5);
     const [isActive, setIsActive] = useState(false);
+    const [coachingText, setCoachingText] = useState('');
+
+    const laserAnim = useRef(new Animated.Value(0)).current;
+    const scannedRef = useRef(false); // Use ref to avoid stale closure in worklet
+
+    const format = useCameraFormat(device, [
+        { videoResolution: { width: 1920, height: 1080 } },
+        { fps: 30 },
+    ]);
 
     // Activate camera only while the modal is visible
     useEffect(() => {
         if (visible) {
             setScanned(false);
+            scannedRef.current = false;
             setIsActive(true);
+            setCoachingText('');
+            const t1 = setTimeout(() => setCoachingText('Hold steady, move closer'), 5000);
+            const t2 = setTimeout(() => setCoachingText('Try better lighting or tap the torch'), 10000);
+            return () => { clearTimeout(t1); clearTimeout(t2); };
         } else {
             setIsActive(false);
         }
     }, [visible]);
+
+    // Animated laser sweep
+    useEffect(() => {
+        if (isActive && visible) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(laserAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+                    Animated.timing(laserAnim, { toValue: 0, duration: 2000, useNativeDriver: true }),
+                ])
+            ).start();
+        } else {
+            laserAnim.stopAnimation();
+        }
+    }, [isActive, visible, laserAnim]);
 
     // Request permission when first opened
     useEffect(() => {
@@ -82,28 +111,33 @@ export function ThemedScanner({
         }
     }, [visible, hasPermission]);
 
-    const handleCodeScanned = useCallback(
-        (codes: { value?: string | null }[]) => {
-            if (scanned || codes.length === 0) return;
-            const value = codes[0].value;
+    const handleBarcodeScanned = useCallback(
+        (barcodes: Barcode[]) => {
+            if (scannedRef.current || barcodes.length === 0) return;
+            const value = barcodes[0].value;
             if (!value) return;
 
+            scannedRef.current = true;
             setScanned(true);
-            console.log(`[SCAN-VC] type detected, length: ${value.length}`);
+            console.log(`[SCAN-ZX] ZXing decoded, type: ${barcodes[0].type}, length: ${value.length}`);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onScan(value);
-            // Allow re-scan after 2 s
-            setTimeout(() => setScanned(false), 2000);
+            // Allow re-scan after 2s
+            setTimeout(() => {
+                scannedRef.current = false;
+                setScanned(false);
+            }, 2000);
         },
-        [scanned, onScan],
+        [onScan],
     );
 
-    const codeScanner = useCodeScanner({
-        codeTypes: scannerType === 'id' ? ID_TYPES : QR_TYPES,
-        onCodeScanned: handleCodeScanned,
+    // ZXing-backed frame processor via @mgcrea/vision-camera-barcode-scanner
+    const { props: zxingProps } = useBarcodeScanner({
+        barcodeTypes: scannerType === 'qr' ? QR_BARCODE_TYPES : ID_BARCODE_TYPES,
+        onBarcodeScanned: handleBarcodeScanned,
     });
 
-    // ── Loading ────────────────────────────────────────────────────────────
+    // ── Loading ─────────────────────────────────────────────────────────────
     if (!hasPermission) {
         return (
             <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -135,7 +169,7 @@ export function ThemedScanner({
         );
     }
 
-    // ── Main scanner UI ────────────────────────────────────────────────────
+    // ── Main scanner UI ─────────────────────────────────────────────────────
     return (
         <Modal
             visible={visible}
@@ -154,15 +188,17 @@ export function ThemedScanner({
                 </View>
 
                 <View style={styles.scannerWrapper}>
+                    {/* Camera with ZXing frame processor spread via zxingProps */}
                     <Camera
                         style={StyleSheet.absoluteFill}
                         device={device}
                         isActive={isActive && visible}
-                        codeScanner={codeScanner}
+                        format={format}
                         torch={torch}
                         zoom={zoom}
                         enableZoomGesture
                         onError={(e) => console.error('[CAMERA] Error:', e)}
+                        {...zxingProps}
                     />
 
                     {/* Controls overlay */}
@@ -200,17 +236,32 @@ export function ThemedScanner({
                         </View>
                     </View>
 
+                    {/* ZXing badge */}
+                    <View style={styles.engineBadge}>
+                        <Text style={styles.engineText}>⚡ ZXing</Text>
+                    </View>
+
                     {/* Scan frame overlay */}
                     <View style={styles.overlay}>
                         <View style={styles.unfocusedContainer} />
-                        <View style={[styles.middleContainer, { height: scannerType === 'id' ? 120 : 220 }]}>
+                        <View style={[styles.middleContainer, { height: scannerType === 'qr' ? 220 : scannerType === 'disc' ? 100 : 120 }]}>
                             <View style={styles.unfocusedContainer} />
-                            <View style={[styles.focusedContainer, { flex: scannerType === 'id' ? 10 : 3 }]}>
+                            <View style={[styles.focusedContainer, { flex: scannerType === 'qr' ? 3 : 10 }]}>
                                 <View style={styles.cornerTopLeft} />
                                 <View style={styles.cornerTopRight} />
                                 <View style={styles.cornerBottomLeft} />
                                 <View style={styles.cornerBottomRight} />
-                                <View style={styles.laser} />
+                                <Animated.View style={[styles.laser, {
+                                    transform: [{
+                                        translateY: laserAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [
+                                                scannerType === 'qr' ? -100 : scannerType === 'disc' ? -40 : -50,
+                                                scannerType === 'qr' ? 100  : scannerType === 'disc' ? 40  : 50,
+                                            ],
+                                        })
+                                    }]
+                                }]} />
                             </View>
                             <View style={styles.unfocusedContainer} />
                         </View>
@@ -219,10 +270,17 @@ export function ThemedScanner({
 
                     {/* Hint */}
                     <View style={styles.hintContainer}>
+                        {coachingText ? (
+                            <View style={styles.coachingBanner}>
+                                <Text style={styles.coachingText}>{coachingText}</Text>
+                            </View>
+                        ) : null}
                         <Text style={styles.hintText}>ALIGN BARCODE WITHIN RECTANGLE</Text>
                         <Text style={styles.subHintText}>
                             {scannerType === 'id'
-                                ? 'Works with ID books, driver\'s licences & licence discs'
+                                ? "Works with ID books & driver's licences"
+                                : scannerType === 'disc'
+                                ? 'Hold disc level, fill the frame'
                                 : 'Scan any QR code'}
                         </Text>
                         <View style={[styles.macroBadge, { backgroundColor: zoom > 1 ? '#3B82F6' : 'rgba(255,255,255,0.2)' }]}>
@@ -323,6 +381,23 @@ const styles = StyleSheet.create({
     },
     zoomText: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
     zoomDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.3)' },
+    engineBadge: {
+        position: 'absolute',
+        top: 72,
+        right: 20,
+        backgroundColor: 'rgba(16,185,129,0.85)',
+        paddingVertical: 3,
+        paddingHorizontal: 10,
+        borderRadius: 12,
+        zIndex: 10,
+    },
+    engineText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
     cornerTopLeft: {
         position: 'absolute', top: 0, left: 0,
         width: 40, height: 40,
@@ -348,12 +423,13 @@ const styles = StyleSheet.create({
         top: '50%',
         left: '5%',
         right: '5%',
-        height: 1,
+        height: 2,
         backgroundColor: '#FF0000',
         shadowColor: '#FF0000',
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 2,
+        shadowOpacity: 0.9,
+        shadowRadius: 4,
+        elevation: 4,
     },
     hintContainer: {
         position: 'absolute',
@@ -371,6 +447,23 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 25,
         overflow: 'hidden',
+        textAlign: 'center',
+    },
+    coachingBanner: {
+        backgroundColor: '#F59E0B',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+    },
+    coachingText: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: 'bold',
         textAlign: 'center',
     },
     subHintText: {

@@ -32,7 +32,9 @@
         "NFC",
         "android.permission.NFC",
         "CAMERA",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "FLASHLIGHT",
+        "android.permission.FLASHLIGHT"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
